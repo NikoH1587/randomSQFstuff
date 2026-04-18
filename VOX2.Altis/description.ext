@@ -1,0 +1,21 @@
+#include "\a3\ui_f\hpp\defineCommonGrids.inc"
+#include "vox_import.hpp"
+#include "vox_strategic.hpp"
+
+respawn = 5;
+respawnDelay = 10;
+reviveMode = 1;
+reviveUnconsciousStateMode = 2;
+reviveRequiredTrait = 1;
+
+corpseManagerMode = 1;
+weaponholderManagerMode = 1;
+
+wreckManagerMode = 1;
+
+aiKills = 0;
+briefing = 0;
+debriefing = 0;
+disableAI = 1;
+enableDebugConsole = 1;
+saving = 1;
