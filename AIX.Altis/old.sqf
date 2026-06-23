@@ -793,3 +793,151 @@ if (AIX_DEBUG) then {
 			if (_control == 2) then {_priority = 0};
 			if (_control == 3) then {_priority = 2};
 		};
+		
+		
+		AIX_ALL_BLU = [
+	AIX_ALL_BLU, 
+	[], 
+	{
+		private _dist1 = [_x select 0,_x select 1] distance AIX_CENT_BLU;
+		private _dist1 = 3 - ((_dist1 / AIX_DIST_BLU) * 3);
+		private _dist2 = [_x select 0,_x select 1] distance AIX_CENT_OPF;
+		private _dist2 = 3 - ((_dist2 / AIX_DIST_OPF) * 3);
+		private _type = _x select 2;
+		private _control = _x select 3;
+		
+		private _priority = 0;
+		
+		if (AIX_MODE_BLU == "ATTACK") then {
+			 /// 0 blk, 1 blu, 2 opf, 3 civ
+			if (_control == 0) then {_priority = 1}; ///BLK
+			if (_control == 1) then {_priority = 0}; ///BLU
+			if (_control == 2) then {_priority = 2}; ///OPF
+			if (_control == 3) then {_priority = 3}; ///CMB
+		};
+		
+		if (AIX_MODE_BLU == "DEFEND") then {
+			if (_control == 0) then {_priority = 1};
+			if (_control == 1) then {_priority = 3};
+			if (_control == 2) then {_priority = 0};
+			if (_control == 3) then {_priority = 2};
+		};		 
+		
+		if (AIX_MODE_BLU == "GAMBIT") then {
+			if (_control == 0) then {_priority = 3};
+			if (_control == 1) then {_priority = 1};
+			if (_control == 2) then {_priority = 0};
+			if (_control == 3) then {_priority = 2};
+		};
+		
+		private _priority = _dist1 + _dist2 + _type + _priority;
+		_priority
+	}, "DESCEND", {
+		[_x select 0,_x select 1] inArea "AIX_BLU"
+	}
+] call BIS_fnc_sortBy;
+
+
+{
+	private _grp = _x;
+	private _cat = _grp getVariable "AIX_CAT";
+	private _side = side _grp;
+	private _id = groupID _grp;
+
+	private _tgdREC = [];
+	private _tgdATK = [];
+	private _tgdDEF = [];
+
+	if (side _grp == AIX_BLU) then {
+		private _tgdREC = AIX_REC_BLU;
+		private _tgdATK = AIX_ATK_BLU;
+		private _tgdDEF = AIX_DEF_BLU;
+	};	
+	
+	if (isNil "_cat") then {
+		if (AIX_DEBUG) then {
+			diag_log format ["%1, %2, %3, %4, %5, %6,", "AIX tacAI.sqf skipped group:", _side, _id, _tgdREC, _tgdATK, _tdgDEF];
+		};	
+		continue;
+	};
+	
+	private _atk = random 1;
+	private _rec = random 1;
+	
+		switch (_cat) do {
+			case "recon": {_rec = _rec + 1};
+		};
+	
+	if (_rec > _atk) then {
+		[_x, _tgdREC] call _fnc_recon;
+	};
+}forEach allGroups;
+
+private _atkBlu = 1;
+private _defBlu = 1;
+private _recBlu = 1;
+
+if (AIX_MODE_BLU == "ATTACK") then {_atkBlu = 3, _defBlu = 2, _recBlu = 1};
+if (AIX_MODE_BLU == "DEFEND") then {_atkBlu = 2, _defBlu = 3, _recBlu = 1};
+if (AIX_MODE_BLU == "GAMBIT") then {_atkBlu = 1, _defBlu = 2, _recBlu = 2};
+
+AIX_RATIO_BLU = [0.25, 0.25, 0.5];
+if (AIX_MODE_OPF == "ATTACK") then {AIX_RATIO_BLU = [0.5, 0.25, 0.25]};
+if (AIX_MODE_OPF == "DEFEND") then {AIX_RATIO_BLU = [0.25, 0.5, 0.25]};
+
+private _allCountBlu = count AIX_ALL_G_BLU;
+private _atkCountBlu = round (_allCountBlu * (AIX_RATIO_BLU select 0));
+private _defCountBlu = round (_allCountBlu * (AIX_RATIO_BLU select 1));
+private _recCountBlu = round (_allCountBlu * (AIX_RATIO_BLU select 2));
+
+AIX_ATK_G_BLU = AIX_ATK_G_BLU select [0, _atkCountBlu];
+AIX_DEF_G_BLU = AIX_DEF_G_BLU select [0, _defCountBlu];
+AIX_REC_G_BLU = AIX_REC_G_BLU select [0, _recCountBlu];
+
+/// Create threat map
+
+
+AIX_ENY_BLU = []; ///[_ID, _pos, _time, _info, _type, _val, _uni, _vhs]
+AIX_ENY_OPF = []; ///[_ID, _pos, _time, _info, _type, _val, _uni, _vhs]
+
+while {true} do {
+	sleep 1;
+	
+	{
+		sleep 0.1;	
+		private _grp = _x;
+		private _ldr = leader _x;
+		if (side _ldr == AIX_OPF) then {
+		
+			private _id = groupID;
+			private _pos = getPosATL leader _grp;
+			private _time = serverTime;
+			private _info = AIX_BLU knowsAbout _ldr / 4;		
+
+			private _val = _grp getVariable "AIX_VAL";
+			private _uni = _grp getVariable "AIX_UNI";
+			private _vhs = _grp getVariable "AIX_VHS";
+		
+			private _id = groupID _grp;
+			private _side = side _grp;
+			private _pos = getPosATL leader _grp;
+			if (isNil "_val") then {
+				if (AIX_DEBUG) then {
+					diag_log format ["%1, %2, %3", "AIX opsAI.sqf skipped group:", _side, _id];
+				};	
+				continue;
+			};
+			
+			if (_info > 0) then {
+				
+				if (AIX_DEBUG) then {
+						private _marker = "AIX_" + "o_" + _id;
+						_marker setMarkerPos (getPos leader _grp);
+						_marker setMarkerAlpha _info;
+				};
+			};
+		};
+		
+		
+	}forEach allGroups;
+};

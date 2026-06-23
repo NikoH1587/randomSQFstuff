@@ -26,7 +26,7 @@ _fnc_recon = {
 _fnc_patrol = {
 	private _group = _this select 0;
 	private _cells = _this select 1;
-	private _trg1 = _cells select 0
+	private _trg1 = _cells select 0;
 	private _trg2 = _cells select 1;
 	private _trg3 = _cells select 2;
 	private _pos1 = [_trg1 select 0, _trg1 select 1];
@@ -52,38 +52,10 @@ _fnc_defendINF = {};
 
 _fnc_defendVEH = {};
 
+_fnc_transport = {};
 
-{
-	private _grp = _x;
-	private _cat = _grp getVariable "AIX_CAT";
-	private _side = side _grp;
-	private _id = groupID _grp;
+_fnc_airstrike = {};
 
-	private _tgdREC = [];
-	private _tgdATK = [];
-	private _tgdDEF = [];
+_fnc_firemission = {};
 
-	if (side _grp == AIX_BLU) then {
-		private _tgdREC = AIX_REC_BLU;
-		private _tgdATK = AIX_ATK_BLU;
-		private _tgdDEF = AIX_DEF_BLU;
-	};	
-	
-	if (isNil "_cat") then {
-		if (AIX_DEBUG) then {
-			diag_log format ["%1, %2, %3, %4, %5, %6,", "AIX tacAI.sqf skipped group:", _side, _id, _tgdREC, _tgdATK, _tdgDEF];
-		};	
-		continue;
-	};
-	
-	private _atk = random 1;
-	private _rec = random 1;
-	
-		switch (_cat) do {
-			case "recon": {_rec = _rec + 1};
-		};
-	
-	if (_rec > _atk) then {
-		[_x, _tgdREC] call _fnc_recon;
-	};
-}forEach allGroups;
+_fnc_airpatrol = {};

@@ -11,7 +11,9 @@ for "_i" from 1 to 8 do {
 };
 
 for "_i" from 1 to 8 do {
-	private _pos = [getMarkerPos "AIX_SPAWN_OPF", 0, 500] call BIS_fnc_findSafePos;
+	private _markers = ["AIX_SPAWN_OPF_1", "AIX_SPAWN_OPF_2", "AIX_SPAWN_OPF_3"];
+	private _marker = _markers select floor random count _markers;
+	private _pos = [getMarkerPos _marker, 0, 500] call BIS_fnc_findSafePos;
 	[_pos, east, 2 + floor random 8] call BIS_fnc_spawnGroup;
 };
 
@@ -36,6 +38,7 @@ for "_i" from 1 to 8 do {
 	private _sup = getNumber (_cfg >> "transportRepair") + getNumber (_cfg >> "transportAmmo") + getNumber (_cfg >> "transportFuel") + getNumber (_cfg >> "attendant");
 	private _tra = _veh emptyPositions "Cargo";
 	private _uni = count units _grp;
+	private _vhs = count ([_grp, false] call BIS_fnc_groupVehicles);
 	private _drv = getNumber (_cfg >> "hasDriver");
 	
 	private _aaa = getText (_cfg >> "editorSubcategory") == "EdSubcat_AAs";
@@ -76,6 +79,9 @@ for "_i" from 1 to 8 do {
 	
 	_grp setVariable ["AIX_CAT", _cat, true];
 	_grp setVariable ["AIX_VAL", _val, true];
+	_grp setVariable ["AIX_UNI", _uni, true];
+	_grp setVariable ["AIX_VHS", _vhs, true];
+	_grp setVariable ["AIX_TRA", _tra, true];
 	_grp setVariable ["AIX_AMB", _amb, true];
 	
 	if (AIX_DEBUG) then {
@@ -87,23 +93,6 @@ for "_i" from 1 to 8 do {
 		_grpMarker = createMarker [_id, getPos _ldr];
 		_grpMarker setMarkerType _marker;
 		_grpMarker setMarkerText str _val;
-		
-		0 spawn {
-			while {AIX_DEBUG} do {
-				{
-					private _grp = _x;
-					private _var = _grp getVariable "AIX_CAT";
-					if (!isNil "_var") then {
-						private _side = "n_";
-						if (side _grp == AIX_BLU) then {_side = "b_"};
-						if (side _grp == AIX_OPF) then {_side = "o_"};
-						private _id = "AIX_" + _side + groupID _grp;
-						_id setMarkerPos (getPos leader _grp); 
-					};
-					sleep 0.1;
-				}forEach allGroups;
-			}
-		};
 	};
 }forEach allGroups;
 
