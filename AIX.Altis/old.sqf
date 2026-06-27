@@ -941,3 +941,273 @@ while {true} do {
 		
 	}forEach allGroups;
 };
+
+/// add secondary objetives;
+private _candidates = [];
+for "_i" from 0 to 15 do {
+	private _pos = "AIX_AO" call BIS_fnc_randomPosTrigger;
+	private _cover = nearestTerrainObjects [_pos, [], AIX_SIZE];
+	private _count = count _cover;
+	
+	if (count _cover > 1000) then {_candidates pushback [_pos, _count]};
+};
+
+private _candidates = [_candidates, [], {_x select 1}, "DESCEND"] call BIS_fnc_sortBy;
+
+{
+	private _pos = _x select 0;
+	private _close = false;
+	
+	{
+		if ((_pos distance [_x select 0, _x select 1]) < (AIX_SIZE * 2)) then {
+			_close = true;
+		};
+	}forEach AIX_OBJ;
+	
+	if (!_close) then {AIX_OBJ pushback [round (_pos select 0), round (_pos select 1), 0, 0]};
+}forEach _candidates;
+
+/// group classification
+{
+	/// skip dead groups
+	
+	if (count units _x == 0) then {
+	
+		if (AIX_DEBUG) then {
+			diag_log format ["%1, %2", "AIX Init.sqf skipped group: ", str _x];
+		};	
+		continue
+	};
+	private _grp = _x;
+	private _ldr = leader _x;
+	private _veh = assignedVehicle _ldr;
+	private _cfg = configFile >> "CfgVehicles" >> typeOf _veh;
+	private _sim = toLower (getText (_cfg >> "simulation"));
+	private _art = getNumber (_cfg >> "artilleryScanner");
+	
+	private _sup = getNumber (_cfg >> "transportRepair") + getNumber (_cfg >> "transportAmmo") + getNumber (_cfg >> "transportFuel") + getNumber (_cfg >> "attendant");
+	private _tra = _veh emptyPositions "Cargo";
+	private _uni = count units _grp;
+	private _vhs = count ([_grp, false] call BIS_fnc_groupVehicles);
+	private _drv = getNumber (_cfg >> "hasDriver");
+	
+	private _aaa = getText (_cfg >> "editorSubcategory") == "EdSubcat_AAs";
+	private _uav = getText (_cfg >> "editorSubcategory") == "EdSubcat_Drones";
+	private _apc = getText (_cfg >> "editorSubcategory") == "EdSubcat_APCs";
+	private _amb = getNumber (_cfg >> "canSwim");
+
+	/// find how many AT group has/how many vehicles
+	private _hat = 0;
+	{
+		private _cfg2 = configFile >> "CfgVehicles" >> typeOf vehicle _x;
+		private _hat2 = getText (_cfg2 >> "icon") == "iconManAT";
+		if (_hat2) then {_hat = _hat + 1};
+	}forEach units _grp;
+
+	private _cat = "recon"; ///Light INF								  atk,def,rec,sup
+																	_val = [0, 0, 1, 0];  /// INF 1
+	if (_hat > 0) then {_cat = "inf", 								_val = [0, 1, 1, 0]}; /// INF LAT 2
+	if (_hat > 1) then {_cat = "service", 							_val = [1, 1, 1, 0]}; /// INF HAT 3
+	
+	if (_sim == "carx") then {_cat = "motor_inf", 					_val = [1, 0, 2, 0]}; /// AFV 3
+	if (_sim == "carx" && _uni == 1) then {_cat = "unknown", 		_val = [0, 0, 1, 1]}; /// Transport 2
+	
+	if (_sim == "tankx") then {_cat = "armor", 						_val = [2, 2, 2, 0]}; /// MBT 6
+	if (_sim == "tankx" && _apc) then {_cat = "mech_inf",			_val = [1, 2, 2, 0]}; /// IFV 5
+	
+	if (_sim == "tankx" && _drv == 0) then {_cat = "installation", 	_val = [0, 1, 0, 1]}; /// Turret 2
+	if (_aaa) then {_cat = "antiair", 								_val = [1, 2, 0, 1]}; /// Anti-air 4
+	
+	if (_sim in ["airplanex", "airplane"]) then {_cat = "plane", 	_val = [2, 0, 1, 2]}; /// Fixed wing 5
+	if (_sim == "helicopterrtd") then {_cat = "air", 				_val = [1, 0, 1, 1]}; /// Rotary wing 3
+	if (_uav) then {_cat = "uav", 									_val = [1, 0, 2, 1]}; /// Drone 4
+	
+	if (_art == 1) then {_cat = "art", 								_val = [2, 2, 0, 2]}; /// SPG 6
+	if (_art == 1 && _drv == 0) then {_cat = "mortar", 				_val = [1, 2, 0, 2]}; /// Mortar/Arty 5
+	if (_sim != "soldier" && _sup > 0) then {_cat = "support", 		_val = [0, 0, 0, 2]}; /// Support unit 2
+	if (_sim in ["shipx","submarinex"]) then {_cat = "naval", 		_val = [0, 1, 1, 1]}; /// Boats 3
+	
+	_vhs = _vhs max 1;
+	_val = [(_val select 0) * _vhs, (_val select 1) * _vhs, (_val select 2) * _vhs, (_val select 3) * _vhs];
+	_val = [(_val select 0) + (_uni*0.1), (_val select 1) + (_uni*0.1), (_val select 2) + (_uni*0.1), _val select 3];
+	_grp setVariable ["AIX_CAT", _cat, true];
+	_grp setVariable ["AIX_VAL", _val, true];
+	
+	if (AIX_DEBUG) then {
+		private _side = "n_";
+		if (side _grp == AIX_BLU) then {_side = "b_"};
+		if (side _grp == AIX_OPF) then {_side = "o_"};
+		private _marker = _side + _cat;
+		private _id = "AIX_" + _side + groupID _grp;
+		_grpMarker = createMarker [_id, getPos _ldr];
+		_grpMarker setMarkerType _marker;
+		_grpMarker setMarkerText str _val;
+	};
+}forEach allGroups;
+
+/// objective tracking
+
+{
+	private _obj = _x;
+	private _pos = [_obj select 0, _obj select 1];
+	private _bluInfo = _obj select 2; /// 0 - unknown, 1 - captured, 2 - known eny, 3 - contested
+	private _opfInfo = _obj select 3; /// 0 - unknown, 1 - captured, 2 - known eny, 3 - contested
+	private _isSec = _obj select 4;
+	private _bluColor = "Default";
+	private _opfColor = "Default";
+	private _size = AIX_SIZE;
+	if (_isSec) then {_size = AIX_SIZE/2};
+	private _hasBlu = false;
+	private _hasOpf = false;
+	private _hasBluEny = false;
+	private _hasOpfEny = false;	
+	
+	{
+		private _grp = _x;
+		private _ldr = leader _grp;
+		private _side = side _grp;
+		private _posLdr = getPosATL _ldr;
+		private _distance = _posLdr distance _pos;
+		
+		if (_distance < AIX_SIZE) then {
+			if (_side == AIX_BLU) then {
+				_hasBlu = true;
+				if (AIX_OPF knowsAbout _ldr > 0) then {
+					_hasOpfEny = true;
+				};
+			};
+			if (_side == AIX_OPF) then {
+				_hasOpf = true;
+				if (AIX_BLU knowsAbout _ldr > 0) then {
+					_hasBluEny = true;
+				};
+			};
+		};
+	}forEach allGroups;
+
+	///_obj set [2, 0];
+	///_obj set [3, 0];
+	if (_hasBlu && !_hasBluEny) then {_obj set [2, 1]; _bluColor = "ColorWEST"};
+	if (!_hasBlu && _hasBluEny) then {_obj set [2, 2]; _bluColor = "ColorEAST"};
+	if (_hasBlu && _hasBluEny) then {_obj set [2, 3]; _bluColor = "ColorCIV"};
+	if (_hasOpf && !_hasOpfEny) then {_obj set [3, 1]; _opfColor = "ColorEAST"};
+	if (!_hasOpf && _hasOpfEny) then {_obj set [3, 2]; _opfColor = "ColorWEST"};
+	if (_hasOpf && _hasOpfEny) then {_obj set [3, 3]; _opfColor = "ColorCIV"};
+	
+	/// _x set [2, _control];
+	// 1,2
+	if (AIX_DEBUG) then {
+		private _markerBlu = createMarker ["AIX_OBJ_BLU_" + str _pos, _pos];
+		private _markerOpf = createMarker ["AIX_OBJ_OPF_" + str _pos, _pos];
+		_markerBlu setMarkerShape "RECTANGLE";
+		_markerOpf setMarkerShape "RECTANGLE";
+		_markerBlu setMarkerBrush "Border";
+		_markerOpf setMarkerBrush "Border";
+		_markerOpf setMarkerDir 45;
+		_markerOpf setMarkerSize [_size, _size];
+		_markerBlu setMarkerSize [_size, _size];
+		_markerBlu setMarkerColor _bluColor;
+		_markerOpf setMarkerColor _opfColor;
+	};
+}forEach AIX_OBJ;
+
+AIX_ATK_BLU = AIX_OBJ select {_x select 2 == 2 or _x select 2 == 3}; /// Attack
+AIX_DEF_BLU = AIX_OBJ select {_x select 2 == 1}; /// Defend
+AIX_REC_BLU = AIX_OBJ select {_x select 2 == 0}; /// Recon
+AIX_ALL_BLU = AIX_ATK_BLU + AIX_DEF_BLU + AIX_REC_BLU;
+
+AIX_ATK_OPF = AIX_OBJ select {_x select 3 == 2 or _x select 3 == 3}; /// Attack
+AIX_DEF_OPF = AIX_OBJ select {_x select 3 == 1}; /// Defend
+AIX_REC_OPF = AIX_OBJ select {_x select 3 == 0}; /// Recon
+AIX_ALL_OPF = AIX_ATK_OPF + AIX_DEF_OPF + AIX_REC_OPF;
+
+
+/// Calculate group weights TODO: ADD MORE WEIGHTS
+/// AreaAttack, UnitAttack, ObjDefence, FrntDefence, Patrol, Recon ...etc
+
+/// Attack demand
+private _atkObjBLU = count AIX_ATK_BLU / count AIX_ALL_BLU; /// Light Weight
+private _atkGrpBLU = AIX_BLU_FORCE / AIX_OPF_FORCE; /// Heavy Weight
+private _atkCmdBLU = AIX_CMD_BLU select 0; /// Multiplier
+
+/// Defence demand
+private _defObjBLU = count AIX_DEF_BLU / count AIX_ALL_BLU; /// Light Weight
+private _defGrpBLU = AIX_OPF_FORCE / AIX_BLU_FORCE; /// Heavy weight
+private _defCmdBLU = AIX_CMD_BLU select 1; /// Multiplier
+
+/// Recon demand
+private _recObjBLU = count AIX_REC_BLU / count AIX_ALL_BLU; /// Heavy weight
+private _recGrpBLU = 1 - (count AIX_ENY_G_BLU / (count AIX_ALL_G_OPF + count AIX_SUP_G_OPF)); /// Light weight
+private _recCmdBLU = AIX_CMD_BLU select 2; /// Multiplier
+
+_atkBLU = (_atkObjBLU + _atkGrpBLU) * _atkCmdBLU;
+_defBLU = (_defObjBLU + _defGrpBLU) * _defCmdBLU;
+_recBLU = (_recObjBLU + _recGrpBLU) * _recCmdBLU;
+_allBLU = _atkBLU + _defBLU + _recBLU;
+
+_atkBLU = _atkBLU / _allBLU;
+_defBLU = _defBLU / _allBLU;
+_recBLU = _recBLU / _allBLU;
+
+private _atkObjOPF = count AIX_ATK_OPF / count AIX_ALL_OPF;
+private _atkGrpOPF = AIX_OPF_FORCE / AIX_BLU_FORCE;
+private _atkCmdOPF = AIX_CMD_OPF select 0;
+
+private _defObjOPF = count AIX_DEF_OPF / count AIX_ALL_OPF;
+private _defGrpOPF = AIX_BLU_FORCE / AIX_OPF_FORCE;
+private _defCmdOPF = AIX_CMD_OPF select 1;
+
+private _recObjOPF = count AIX_REC_OPF / count AIX_ALL_OPF;
+private _recGrpOPF = 1 - (count AIX_ENY_G_OPF / (count AIX_ALL_G_BLU + count AIX_SUP_G_BLU));
+private _recCmdOPF = AIX_CMD_OPF select 2;
+
+_atkOPF = (_atkObjOPF + _atkGrpOPF) * _atkCmdOPF;
+_defOPF = (_defObjOPF + _defGrpOPF) * _defCmdOPF;
+_recOPF = (_recObjOPF + _recGrpOPF) * _recCmdOPF;
+_allOPF = _atkOPF + _defOPF + _recOPF;
+
+_atkOPF = _atkOPF / _allOPF;
+_defOPF = _defOPF / _allOPF;
+_recOPF = _recOPF / _allOPF;
+
+_fnc_recon = {
+	private _group = _this select 0;
+	private _cells = _this select 1;
+	private _trg1 = _cells 0;
+	private _trg2 = _cells 1;
+	private _trg3 = _cells 2;
+	private _pos1 = [_trg1 select 0, _trg1 select 1];
+	private _pos2 = [_trg1 select 0, _trg1 select 1];
+	private _pos3 = [_trg1 select 0, _trg1 select 1];
+	
+    private _wp1 = _group addWaypoint [_trg1, _cellRad];
+	_wp1 setWaypointFormation "COLUMN";
+	_wp1 setWaypointBehaviour "AWARE";
+	_wp2 setWaypointCombatMode "GREEN";
+	_wp1 setWaypointSpeed "NORMAL";
+    private _wp2 = _group addWaypoint [_trg2, _cellRad];
+	_wp1 setWaypointFormation "WEDGE";
+	_wp2 setWaypointBehaviour "STEALTH";
+    private _wp3 = _group addWaypoint [_trg3, _cellRad];
+};
+
+_fnc_patrol = {
+	private _group = _this select 0;
+	private _cells = _this select 1;
+	private _trg1 = _cells select 0;
+	private _trg2 = _cells select 1;
+	private _trg3 = _cells select 2;
+	private _pos1 = [_trg1 select 0, _trg1 select 1];
+	private _pos2 = [_trg1 select 0, _trg1 select 1];
+	private _pos3 = [_trg1 select 0, _trg1 select 1];
+	
+    private _wp1 = _group addWaypoint [_trg1, _cellRad];
+	_wp1 setWaypointFormation "COLUMN";
+	_wp1 setWaypointBehaviour "AWARE";
+	_wp2 setWaypointCombatMode "GREEN";
+	_wp1 setWaypointSpeed "NORMAL";
+    private _wp2 = _group addWaypoint [_trg2, _cellRad];
+	_wp1 setWaypointFormation "WEDGE";
+	_wp2 setWaypointBehaviour "SAFE";
+    private _wp3 = _group addWaypoint [_trg3, _cellRad];
+};

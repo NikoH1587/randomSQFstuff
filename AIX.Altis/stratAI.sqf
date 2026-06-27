@@ -1,260 +1,120 @@
-/// calculate forces
-AIX_BLU_FORCE = 0;
-AIX_OPF_FORCE = 0;
-AIX_ALL_G_BLU = [];
-AIX_ALL_G_OPF = [];
-AIX_SUP_G_BLU = [];
-AIX_SUP_G_OPF = [];
-private _bluPos = [];
-private _opfPos = [];
+/// objective tracking
 
 {
-	private _grp = _x;
-	private _val = _grp getVariable "AIX_VAL";
-	private _id = groupID _grp;
-	private _side = side _grp;
-	private _pos = getPosATL leader _grp;
-	if (isNil "_val") then {
-		if (AIX_DEBUG) then {
-			diag_log format ["%1, %2, %3", "AIX stratAI.sqf skipped group:", _side, _id];
-		};	
-		continue;
-	};
-	
-	if (side _grp == AIX_BLU) then {
-		AIX_BLU_FORCE = AIX_BLU_FORCE + ((_val select 0) + (_val select 1) + (_val select 2) + (_val select 3));
-		AIX_ALL_G_BLU pushback _x;
-		_bluPos pushback _pos;
-	};
-	
-	if (side _grp == AIX_OPF) then {
-		AIX_OPF_FORCE = AIX_OPF_FORCE + ((_val select 0) + (_val select 1) + (_val select 2) + (_val select 3));
-		AIX_ALL_G_OPF pushback _x;
-		_opfPos pushback _pos;
-	};
-}forEach allGroups;
-
-private _bluCentX = 0;
-private _bluCentY = 0;
-private _opfCentX = 0;
-private _opfCentY = 0;
-
-{
-	_bluCentX = _bluCentX + (_x select 0);
-	_bluCentY = _bluCentY + (_x select 1);
-}forEach _bluPos;
-
-{
-	_opfCentX = _opfCentX + (_x select 0);
-	_opfCentY = _opfCentY + (_x select 1);
-}forEach _opfPos;
-
-/// side center of mass
-AIX_CENT_BLU = [_bluCentX / count _bluPos, _bluCentY / count _bluPos];
-AIX_CENT_OPF = [_opfCentX / count _opfPos, _opfCentY / count _opfPos];
-
-if (AIX_DEBUG) then {
-	private _mrkBLU = createMarker ["AIX_CENT_BLU", AIX_CENT_BLU];
-	_mrkBLU setMarkerType "b_hq";
-	private _mrkOPF = createMarker ["AIX_CENT_OPF", AIX_CENT_OPF];
-	_mrkOPF setMarkerType "o_hq";
-};
-
-/// grid tracking
-
-AIX_GRID_BLK = [];
-AIX_GRID_BLU = [];
-AIX_GRID_OPF = [];
-AIX_GRID_CMB = [];
-
-{
-	private _posX = _x select 0;
-	private _posY = _x select 1;
-	private _pos = [_posX, _posY];
-	private _type = _x select 2;
-	
-	private _control = 0;
-	
+	private _obj = _x;
+	private _pos = _obj select 0;
+	private _isSec = _obj select 2;
+	private _color = "Default";
+	private _size = AIX_SIZE;
+	if (_isSec) then {_size = AIX_SIZE/2};
 	private _blu = false;
 	private _opf = false;
+	private _cmb = false;
 	
 	{
-		private _side = side _x;
-		private _posLdr = getPosATL leader _x;
+		private _grp = _x;
+		private _ldr = leader _grp;
+		private _side = side _grp;
+		private _posLdr = getPosATL _ldr;
 		private _distance = _posLdr distance _pos;
-		if (_distance < 300) then {
+		
+		if (_distance < _size) then {
 			if (_side == AIX_BLU) then {
 				_blu = true;
+				if (AIX_OPF knowsAbout _ldr > 0) then {
+					_cmb = true;
+				};
 			};
-			
 			if (_side == AIX_OPF) then {
 				_opf = true;
+				if (AIX_BLU knowsAbout _ldr > 0) then {
+					_cmb = true;
+				};
 			};
 		};
 	}forEach allGroups;
 	
-	if (_blu) then {_control = 1};
-	if (_opf) then {_control = 2};
-	if (_blu && _opf) then {_control = 3};
+	/// DO NOT SET TO: _obj set [2, 0]; ACTS AS "MEMORY"
+	if (_blu && !_opf) then {_obj set [1, 1]; _color = "ColorWEST"};
+	if (_opf && !_blu) then {_obj set [1, 2]; _color = "ColorEAST"};
+	if (_cmb) then {_obj set [1, 3]; _color = "ColorCIV"};
 	
-	_x set [3, _control];
-	
-	if (_control == 0) then {AIX_GRID_BLK pushback _x};
-	if (_control == 1) then {AIX_GRID_BLU pushback _x};
-	if (_control == 2) then {AIX_GRID_OPF pushback _x};
-	if (_control == 3) then {AIX_GRID_CMB pushback _x};
-	
-}forEach AIX_GRID;
-
-if (AIX_DEBUG) then {
-	0 call AIX_FNC_GRID;
-};
-
-/// choose strategy type
-AIX_MODE_BLU = "GAMBIT";
-AIX_MODE_OPF = "GAMBIT";
-
-if ((AIX_BLU_FORCE / 1.5) > AIX_OPF_FORCE) then {AIX_MODE_BLU = "ATTACK"; AIX_MODE_OPF = "DEFEND"};
-if ((AIX_OPF_FORCE / 1.5) > AIX_BLU_FORCE) then {AIX_MODE_OPF = "ATTACK"; AIX_MODE_BLU = "DEFEND"};
-
-if (AIX_DEBUG) then {
-	sleep 0.1;
-	systemchat ("BLU FORCE: " + str AIX_BLU_FORCE + " MODE: " + AIX_MODE_BLU);
-	systemchat ("OPF FORCE: " + str AIX_OPF_FORCE + " MODE: " + AIX_MODE_OPF);
-};
-
-private _size = ((getMarkerSize "AIX_AO") select 0) / 2;
-private _gambitOP = [_size * 1.5, _size* 1.5];
-private _attackOP = [_size, _size * 2];
-private _defendOP = [_size * 2, _size];
-
-/// remove support units from pool
-{
-	private _grp = _x;
-	private _val = _grp getVariable "AIX_VAL";
-	private _sup = _val select 3;
-	private _index = _forEachIndex;
-
-	/// remove support units from pool
-	if (_sup > 0) then {
-		AIX_SUP_G_BLU pushback _x;
-		AIX_ALL_G_BLU deleteAt _index;
+	/// _x set [2, _control];
+	// 1,2
+	if (AIX_DEBUG) then {
+		private _mrk = createMarker ["AIX_OBJ_" + str _forEachIndex, _pos];
+		_mrk setMarkerShape "ELLIPSE";
+		_mrk setMarkerBrush "Border";
+		_mrk setMarkerSize [_size, _size];
+		_mrk setMarkerColor _color;
 	};
+}forEach AIX_OBJ;
 
-}forEach AIX_ALL_G_BLU;
+AIX_ATK_BLU = AIX_OBJ select {_x select 1 == 3}; /// Attack
+AIX_DEF_BLU = AIX_OBJ select {_x select 1 == 1}; /// Defend
+AIX_REC_BLU = AIX_OBJ select {_x select 1 in [0, 2]}; /// Recon
+AIX_ALL_BLU = AIX_ATK_BLU + AIX_DEF_BLU + AIX_REC_BLU;
+
+AIX_ATK_OPF = AIX_OBJ select {_x select 1 == 3}; /// Attack
+AIX_DEF_OPF = AIX_OBJ select {_x select 1 == 2}; /// Defend
+AIX_REC_OPF = AIX_OBJ select {_x select 1 in [0, 1]}; /// Recon
+AIX_ALL_OPF = AIX_ATK_OPF + AIX_DEF_OPF + AIX_REC_OPF;
+
+
+/// Sort objectives based on distance to centers
+private _bluCentX = 0;
+private _bluCentY = 0;
+private _opfCentX = 0;
+private _opfCentY = 0;
+private _posBlu = count AIX_POS_BLU;
+private _posOpf = count AIX_POS_OPF;
 
 {
-	private _grp = _x;
-	private _val = _grp getVariable "AIX_VAL";
-	private _sup = _val select 3;
-	private _index = _forEachIndex;
+	_bluCentX = _bluCentX + (_x select 0);
+	_bluCentY = _bluCentY + (_x select 1);
+}forEach AIX_POS_BLU;
 
-	/// remove support units from pool
-	if (_sup > 0) then {
-		AIX_SUP_G_OPF pushback _x;
-		AIX_ALL_G_OPF deleteAt _index;
-	};
+{
+	_opfCentX = _opfCentX + (_x select 0);
+	_opfCentY = _opfCentY + (_x select 1);
+}forEach AIX_POS_OPF;
 
-}forEach AIX_ALL_G_OPF;
+AIX_CENT_BLU = [_bluCentX / _posBlu, _bluCentY / _posBlu];
+AIX_CENT_OPF = [_opfCentX / _posOpf, _opfCentY / _posOpf];
 
-/// STRATEGIC PLAN "GAMBIT"
-if (AIX_MODE_BLU == "GAMBIT") then {
-	private _old = AIX_GRID_BLU select floor random count AIX_GRID_BLU;
-	private _oldX = _old select 0;
-	private _oldY = _old select 1;
+AIX_ATK_BLU = [AIX_ATK_BLU, [], {(_x select 0) distance AIX_CENT_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_DEF_BLU = [AIX_DEF_BLU, [], {(_x select 0) distance AIX_CENT_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_REC_BLU = [AIX_REC_BLU, [], {(_x select 0) distance AIX_CENT_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_ATK_OPF = [AIX_ATK_OPF, [], {(_x select 0) distance AIX_CENT_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_DEF_OPF = [AIX_DEF_OPF, [], {(_x select 0) distance AIX_CENT_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_REC_OPF = [AIX_REC_OPF, [], {(_x select 0) distance AIX_CENT_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
 
-	private _new = AIX_GRID_BLK select floor random count AIX_GRID_BLK;
-	private _newX = _new select 0;
-	private _newY = _new select 1;
+/// Calculate operational weights
+AIX_ATK_W_BLU = AIX_VAL_BLU / AIX_VAL_OPF;
+AIX_DEF_W_BLU = AIX_VAL_OPF / AIX_VAL_BLU;
+AIX_REC_W_BLU = 1 - (count AIX_ENY_G_BLU / (count AIX_ALL_G_OPF + count AIX_SUP_G_OPF));
+AIX_ALL_W_BLU = AIX_ATK_W_BLU + AIX_DEF_W_BLU + AIX_REC_W_BLU;
+
+AIX_ATK_W_BLU = (AIX_ATK_W_BLU / AIX_ALL_W_BLU) * (AIX_CMD_BLU select 0);
+AIX_DEF_W_BLU = (AIX_DEF_W_BLU / AIX_ALL_W_BLU) * (AIX_CMD_BLU select 1);
+AIX_REC_W_BLU = (AIX_REC_W_BLU / AIX_ALL_W_BLU) * (AIX_CMD_BLU select 2);
+
+AIX_ATK_W_OPF = AIX_VAL_OPF / AIX_VAL_BLU;
+AIX_DEF_W_OPF = AIX_VAL_BLU / AIX_VAL_OPF;
+AIX_REC_W_OPF = 1 - (count AIX_ENY_G_OPF / (count AIX_ALL_G_BLU + count AIX_SUP_G_BLU));
+AIX_ALL_W_OPF = AIX_ATK_W_OPF + AIX_DEF_W_OPF + AIX_REC_W_OPF;
+
+AIX_ATK_W_OPF = (AIX_ATK_W_OPF / AIX_ALL_W_OPF) * (AIX_CMD_OPF select 0);
+AIX_DEF_W_OPF = (AIX_DEF_W_OPF / AIX_ALL_W_OPF) * (AIX_CMD_OPF select 1);
+AIX_REC_W_OPF = (AIX_REC_W_OPF / AIX_ALL_W_OPF) * (AIX_CMD_OPF select 2);
+
+if (AIX_DEBUG) then {
 	
-	private _centPos = [(_oldX + _newX) / 2, (_oldY + _newY) / 2];
-	private _dir = [_oldX, _oldY] getDir [_newX, _newY];
-	"AIX_BLU" setMarkerPos _centPos;
-	"AIX_BLU" setMarkerDir _dir;
-	"AIX_BLU" setMarkerSize _gambitOP;
-};
-
-if (AIX_MODE_OPF == "GAMBIT") then {
-	private _old = AIX_GRID_OPF select floor random count AIX_GRID_OPF;
-	private _oldX = _old select 0;
-	private _oldY = _old select 1;
-
-	private _new = AIX_GRID_BLK select floor random count AIX_GRID_BLK;
-	private _newX = _new select 0;
-	private _newY = _new select 1;
+	systemchat str ("BLU VAL: " + str AIX_VAL_BLU + " ATK_W: " +  str AIX_ATK_W_BLU + " DEF_W: " +  str AIX_DEF_W_BLU + " REC_W: " +  str AIX_REC_W_BLU);
+	systemchat str ("OPF VAL: " + str AIX_VAL_OPF + " ATK_W: " +  str AIX_ATK_W_OPF + " DEF_W: " +  str AIX_DEF_W_OPF + " REC_W: " +  str AIX_REC_W_OPF);	
 	
-	private _centPos = [(_oldX + _newX) / 2, (_oldY + _newY) / 2];
-	private _dir = [_oldX, _oldY] getDir [_newX, _newY];
-	"AIX_OPF" setMarkerPos _centPos;
-	"AIX_OPF" setMarkerDir _dir;
-	"AIX_OPF" setMarkerSize _gambitOP;
+	createMarker ["AIX_BLU", AIX_CENT_BLU];
+	createMarker ["AIX_OPF", AIX_CENT_OPF];
+	"AIX_BLU" setMarkerType "b_hq";
+	"AIX_OPF" setMarkerType "o_hq";
 };
-
-/// STRATEGIC PLAN "ATTACK"
-if (AIX_MODE_BLU == "ATTACK") then {
-	private _old = AIX_GRID_BLU select floor random count AIX_GRID_BLU;
-	private _oldX = _old select 0;
-	private _oldY = _old select 1;
-
-	private _new = AIX_GRID_OPF select floor random count AIX_GRID_OPF;
-	private _newX = _new select 0;
-	private _newY = _new select 1;
-	
-	private _centPos = [(_oldX + _newX) / 2, (_oldY + _newY) / 2];
-	private _dir = [_oldX, _oldY] getDir [_newX, _newY];
-	"AIX_BLU" setMarkerPos _centPos;
-	"AIX_BLU" setMarkerDir _dir;
-	"AIX_BLU" setMarkerSize _attackOP;
-};
-
-if (AIX_MODE_OPF == "ATTACK") then {
-	private _old = AIX_GRID_OPF select floor random count AIX_GRID_OPF;
-	private _oldX = _old select 0;
-	private _oldY = _old select 1;
-
-	private _new = AIX_GRID_BLU select floor random count AIX_GRID_BLU;
-	private _newX = _new select 0;
-	private _newY = _new select 1;
-	
-	private _centPos = [(_oldX + _newX) / 2, (_oldY + _newY) / 2];
-	private _dir = [_oldX, _oldY] getDir [_newX, _newY];
-	"AIX_OPF" setMarkerPos _centPos;
-	"AIX_OPF" setMarkerDir _dir;
-	"AIX_OPF" setMarkerSize _attackOP;
-};
-
-/// STRATEGIC PLAN "DEFEND"
-/// TODO: change to force's centre, make area size and position dependent on "personality" weights
-if (AIX_MODE_BLU == "DEFEND") then {
-	private _old = AIX_GRID_BLU select floor random count AIX_GRID_BLU;
-	private _oldX = _old select 0;
-	private _oldY = _old select 1;
-
-	private _new = AIX_GRID_OPF select floor random count AIX_GRID_OPF;
-	private _newX = _new select 0;
-	private _newY = _new select 1;
-	
-	private _centPos = [(_oldX + _newX) / 2, (_oldY + _newY) / 2];
-	private _dir = [_oldX, _oldY] getDir [_newX, _newY];
-	"AIX_BLU" setMarkerPos [_oldX, _oldY];
-	"AIX_BLU" setMarkerDir _dir;
-	"AIX_BLU" setMarkerSize _defendOP;
-};
-
-if (AIX_MODE_OPF == "DEFEND") then {
-	private _old = AIX_GRID_OPF select floor random count AIX_GRID_OPF;
-	private _oldX = _old select 0;
-	private _oldY = _old select 1;
-
-	private _new = AIX_GRID_BLU select floor random count AIX_GRID_BLU;
-	private _newX = _new select 0;
-	private _newY = _new select 1;
-	
-	private _centPos = [(_oldX + _newX) / 2, (_oldY + _newY) / 2];
-	private _dir = [_oldX, _oldY] getDir [_newX, _newY];
-	"AIX_OPF" setMarkerPos [_oldX, _oldY];
-	"AIX_OPF" setMarkerDir _dir;
-	"AIX_OPF" setMarkerSize _defendOP;
-};
-
-/// TODO: secondary operations/more shapes or types? (ambphibious, airlift, guerrilla style ambushes...)

@@ -1,61 +1,53 @@
 /// TODO: make players receive orders as tasks
+/// TODO: make default position for wait/defent/patrol HQ pos
 
-private _cellRad = AIX_SIZE/2;
-
-_fnc_recon = {
-	private _group = _this select 0;
-	private _cells = _this select 1;
-	private _trg1 = _cells 0;
-	private _trg2 = _cells 1;
-	private _trg3 = _cells 2;
-	private _pos1 = [_trg1 select 0, _trg1 select 1];
-	private _pos2 = [_trg1 select 0, _trg1 select 1];
-	private _pos3 = [_trg1 select 0, _trg1 select 1];
+/// Assign tasks to groups
+{
+	private _grp = _x;
+	private _val = _grp getVariable "AIX_VAL";
+	private _task = [AIX_CENT_BLU, _grp, 0, AIX_SIZE * 2]; /// Default FOB patrol
 	
-    private _wp1 = _group addWaypoint [_trg1, _cellRad];
-	_wp1 setWaypointFormation "COLUMN";
-	_wp1 setWaypointBehaviour "AWARE";
-	_wp2 setWaypointCombatMode "GREEN";
-	_wp1 setWaypointSpeed "NORMAL";
-    private _wp2 = _group addWaypoint [_trg2, _cellRad];
-	_wp1 setWaypointFormation "WEDGE";
-	_wp2 setWaypointBehaviour "STEALTH";
-    private _wp3 = _group addWaypoint [_trg3, _cellRad];
-};
-
-_fnc_patrol = {
-	private _group = _this select 0;
-	private _cells = _this select 1;
-	private _trg1 = _cells select 0;
-	private _trg2 = _cells select 1;
-	private _trg3 = _cells select 2;
-	private _pos1 = [_trg1 select 0, _trg1 select 1];
-	private _pos2 = [_trg1 select 0, _trg1 select 1];
-	private _pos3 = [_trg1 select 0, _trg1 select 1];
+	if (count AIX_REC_BLU > 0) then {
+		private _select = AIX_REC_BLU select floor random count AIX_REC_BLU;
+		private _pos = _select select 0;
+		private _rsk = 0;
+		private _ctrl = _select select 1;
+		if (_ctrl == 0) then {_rsk = 1}; /// FLIP FOR OPF
+		if (_ctrl == 2) then {_rsk = 2}; /// FLIP FOR OPF
+		private _isSec = _select select 2;
+		
+		_rad = AIX_SIZE * 2;
+		if (_isSec) then {_rad = AIX_SIZE};
+		_task = [_pos, _grp, _rsk, _rad];
+	};
 	
-    private _wp1 = _group addWaypoint [_trg1, _cellRad];
-	_wp1 setWaypointFormation "COLUMN";
-	_wp1 setWaypointBehaviour "AWARE";
-	_wp2 setWaypointCombatMode "GREEN";
-	_wp1 setWaypointSpeed "NORMAL";
-    private _wp2 = _group addWaypoint [_trg2, _cellRad];
-	_wp1 setWaypointFormation "WEDGE";
-	_wp2 setWaypointBehaviour "SAFE";
-    private _wp3 = _group addWaypoint [_trg3, _cellRad];
-};
+	_task call AIX_FNC_RECON
+}forEach AIX_REC_G_BLU;
 
-_fnc_attackINF = {};
+{
+	private _grp = _x;
+	private _val = _grp getVariable "AIX_VAL";
+	private _veh = false;
+	private _task = [[[[AIX_CENT_BLU, AIX_SIZE]], []] call BIS_fnc_randomPos, _grp, _veh, AIX_CENT_BLU getDir AIX_CENT_OPF]; /// Default FOB defence	
+	
+	if (count AIX_DEF_BLU > 0) then {
+		private _select = AIX_DEF_BLU select floor random count AIX_DEF_BLU;
+		private _pos = _select select 0;
+		private _isSec = _select select 2;
+		private _rad = AIX_SIZE;
+		if (_isSec) then {_rad = AIX_SIZE / 2};
+		private _pos = [[[_pos, _rad]], ["water"]] call BIS_fnc_randomPos;
+		private _dir = _pos getDir AIX_CENT_OPF;
+		_task = [_pos, _grp, _veh, _dir];
+	};
+	
+	_task call AIX_FNC_DEFEND
+}forEach AIX_DEF_G_BLU;
 
-_fnc_attackVEH = {};
-
-_fnc_defendINF = {};
-
-_fnc_defendVEH = {};
-
-_fnc_transport = {};
-
-_fnc_airstrike = {};
-
-_fnc_firemission = {};
-
-_fnc_airpatrol = {};
+/// Tasks:
+/// ATTACK (OBJ), ATTACK (GRP), ATTACK (FOB)
+/// DEFEND (OBJ), DEFEND (FOB)
+/// RECON (OBJ_OBJ), RECON (OBJ_SEC), PATROL (OBJ_BLU)  
+///
+/// RETREAT (OBJ), RETREAT (FOB), WAIT (POS)
+/// AIRSTRIKE (GRP), FIREMISSION (GRP), TRANPORT (GRP)
