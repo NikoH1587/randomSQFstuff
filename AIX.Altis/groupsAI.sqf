@@ -81,9 +81,9 @@
 /// Sort groups into support category, save positions and force for later use
 AIX_ALL_G_BLU = [];
 AIX_ALL_G_OPF = [];
-AIX_ENY_G_BLU = [];
 AIX_SUP_G_BLU = [];
 AIX_SUP_G_OPF = [];
+AIX_ENY_G_BLU = [];
 AIX_ENY_G_OPF = [];
 AIX_POS_BLU = [];
 AIX_POS_OPF = [];

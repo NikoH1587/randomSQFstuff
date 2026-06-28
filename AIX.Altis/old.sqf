@@ -1211,3 +1211,39 @@ _fnc_patrol = {
 	_wp2 setWaypointBehaviour "SAFE";
     private _wp3 = _group addWaypoint [_trg3, _cellRad];
 };
+
+	{
+		private _count = count _x;
+		private _dbg = _forEachIndex;
+		{
+			private _pos = _x select 0;
+			
+
+			private _dbgText = "BLU_NAN";
+			if (_dbg == 0) then {_dbgText = "BLU_ATK"};
+			if (_dbg == 1) then {_dbgText = "BLU_DEF"};
+			if (_dbg == 2) then {_dbgText = "BLU_REC"};
+			_dbgMrk = createMarker ["AIX_DBG_BLU" + str _pos, _pos];
+			_dbgMrk setMarkerType "hd_dot";
+			_dbgMrk setMarkerColor "ColorWEST";
+			_dbgMrk setMarkerText _dbgText;
+		
+		}forEach _x;
+	}forEach [AIX_ATK_BLU, AIX_DEF_BLU, AIX_REC_BLU];
+	
+	{
+		private _count = count _x;
+		private _dbg = _forEachIndex;
+		{
+			private _pos = _x select 0;
+			
+			private _dbgText = "OPF_NAN";
+			if (_dbg == 0) then {_dbgText = "OPF_ATK"};
+			if (_dbg == 1) then {_dbgText = "OPF_DEF"};
+			if (_dbg == 2) then {_dbgText = "OPF_REC"};
+			_dbgMrk = createMarker ["AIX_DBG_OPF" + str _pos, [_pos select 0, (_pos select 1) + 50]];
+			_dbgMrk setMarkerType "hd_dot";
+			_dbgMrk setMarkerColor "ColorEAST";
+			_dbgMrk setMarkerText _dbgText;
+		}forEach _x;
+	}forEach [AIX_ATK_OPF, AIX_DEF_OPF, AIX_REC_OPF];

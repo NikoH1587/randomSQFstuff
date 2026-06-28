@@ -1,5 +1,5 @@
-/// TODO: make players receive orders as tasks
-/// TODO: make default position for wait/defent/patrol HQ pos
+/// TODO: MAKE TASK GROUPS FOR TASKS (2x default rec, 1x default defend, 0x default attack
+/// 	MAKE UNASSIGED GROUPS DO WAIT TASK?
 
 /// Assign tasks to groups
 {

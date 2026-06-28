@@ -81,6 +81,7 @@ private _posOpf = count AIX_POS_OPF;
 
 AIX_CENT_BLU = [_bluCentX / _posBlu, _bluCentY / _posBlu];
 AIX_CENT_OPF = [_opfCentX / _posOpf, _opfCentY / _posOpf];
+AIX_CENT_ALL = [((AIX_CENT_BLU select 0) + (AIX_CENT_OPF select 0)) / 2, ((AIX_CENT_BLU select 1) + (AIX_CENT_OPF select 1)) / 2];
 
 AIX_ATK_BLU = [AIX_ATK_BLU, [], {(_x select 0) distance AIX_CENT_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
 AIX_DEF_BLU = [AIX_DEF_BLU, [], {(_x select 0) distance AIX_CENT_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
@@ -115,6 +116,8 @@ if (AIX_DEBUG) then {
 	
 	createMarker ["AIX_BLU", AIX_CENT_BLU];
 	createMarker ["AIX_OPF", AIX_CENT_OPF];
+	createMarker ["AIX_CNT", AIX_CENT_ALL];
 	"AIX_BLU" setMarkerType "b_hq";
 	"AIX_OPF" setMarkerType "o_hq";
+	"AIX_CNT" setMarkerType "n_hq";
 };

@@ -6,8 +6,8 @@ AIX_OPF = east;
 AIX_SIZE = 250;
 
 /// Commander personalities
-AIX_CMD_BLU = [1, 1, 1, 1, 1, 2]; /// 0 - Attack weight, 1 Defence w, 2 Recon w, 3 max Atk Objectives, 4 Max Def Obj, 5 Max Rec Obj
-AIX_CMD_OPF = [1, 1, 1, 1, 1, 2];
+AIX_CMD_BLU = [1, 1, 1, 1, 2, 3]; /// 0 - Attack weight, 1 Defence w, 2 Recon w, 3 max Atk Objectives, 4 Max Def Obj, 5 Max Rec Obj
+AIX_CMD_OPF = [1, 1, 1, 1, 2, 3];
 
 /// get primary objectives
 AIX_OBJ = [];
@@ -67,6 +67,6 @@ sleep 1;
 	private _tasksAI = execVM "tasksAI.sqf";
 	waitUntil {scriptDone _tasksAI};
 	sleep 1;
-	private _tacAI = execVM "tacAI.sqf";
-	waitUntil {scriptDone _tacAI};
+	///private _tacAI = execVM "tacAI.sqf";
+	///waitUntil {scriptDone _tacAI};
 };
