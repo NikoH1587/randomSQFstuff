@@ -38,7 +38,7 @@ AIX_FNC_DEFEND = {
 		_mode = "YELLOW";
 	};
 	
-	private _wp1 = _grp addWaypoint [_pos, -1];
+	private _wp1 = _grp addWaypoint [_pos, 0];
 	_wp1 setWaypointFormation "WEDGE";
 	_wp1 setWaypointBehaviour "AWARE";
 	_wp1 setWaypointCombatMode _mode;
@@ -50,6 +50,16 @@ AIX_FNC_TRANSPORT = {};
 
 AIX_FNC_AIRSTRIKE = {};
 
+AIX_FNC_AIRPATROL = {};
+
 AIX_FNC_FIREMISSION = {};
 
+AIX_FNC_SMOKE = {};
+
 AIX_FNC_AIRPATROL = {};
+
+AIX_FNC_MOUNT = {}; /// Mount empty vehicles
+
+AIX_FNC_REGROUP = {};
+
+AIX_FNC_WAIT = {};

@@ -3,70 +3,95 @@ if (!isServer) exitWith {hint "not server"};
 AIX_DEBUG = true;
 AIX_BLU = west;
 AIX_OPF = east;
-AIX_SIZE = 250;
+AIX_CMD_BLU = [4, 0.5, 2]; /// [Number of sections (3-5), Attack force ratio, Defend force ratio]
+AIX_CMD_OPF = [5, 0.5, 2];
 
-/// Commander personalities
-AIX_CMD_BLU = [1, 1, 1, 1, 2, 3]; /// 0 - Attack weight, 1 Defence w, 2 Recon w, 3 max Atk Objectives, 4 Max Def Obj, 5 Max Rec Obj
-AIX_CMD_OPF = [1, 1, 1, 1, 2, 3];
+/// Create Tactical Grid
 
-/// get primary objectives
-AIX_OBJ = [];
-private _locs = nearestLocations [getMarkerPos "AIX_AO", ["NameCityCapital", "NameCity", "NameVillage", "NameLocal", "Hill"], worldsize];
-{
-	private _pos = position _x;
-	private _posX = round (_pos select 0);
-	private _posY = round (_pos select 1);
-	if (_pos inArea "AIX_AO") then {
-		AIX_OBJ pushback [[_posX, _posY], 0, false]; /// [_pos, _control, _isSecondary]
-	};
-}forEach _locs;
+AIX_GRID = []; /// [_pos, _type, _bluInfo, _opfInfo]
+AIX_SIZE = 200;
 
-/// add secondary objetives;
-private _locs2 = nearestLocations [getMarkerPos "AIX_AO", ["Mount"], worldsize];
-private _locs2 = [_locs2, [], {getTerrainHeightASL (position _x)}, "DESCEND", {true}] call BIS_fnc_sortBy;
+for "_col" from 0 to (worldSize / AIX_SIZE) do {
+    for "_row" from 0 to (worldSize / AIX_SIZE) do {
+		_pos = [_col * AIX_SIZE, _row * AIX_SIZE];
+		if !(_pos inArea "AIX_AO") then {continue};
+		private _city = nearestLocation [_pos, ["NameCityCapital"], AIX_SIZE * 2];
+		private _hill = nearestLocation [_pos, ["Hill"], AIX_SIZE * 2];
+		private _town = nearestLocation [_pos, ["NameCity", "NameLocal", "NameVillage"], AIX_SIZE];
+		private _mount = nearestLocation [_pos, ["Mount"], AIX_SIZE];
+		
+		/// 0 - water, 1 - ground, 2 - elevation, 3 - cover
+		private _type = 1;
 
-{
-	private _pos = position _x;
-	private _posX = round (_pos select 0);
-	private _posY = round (_pos select 1);
-	private _close = false;
-	
-	{
-		if ((_x select 0) distance _pos < AIX_SIZE * 2) then {_close = true};
-	}forEach AIX_OBJ;
-	
-	if (_pos inArea "AIX_AO" && !_close) then {
-		AIX_OBJ pushback [[_posX, _posY], 0, true];
-	};
-}forEach _locs2;
-
-/// spawn random INF
-for "_i" from 1 to 16 do {
-	_pos = [["AIX_SPAWN_BLU"], [], {(getPosASL nearestObject _this) distance _this > 5}] call BIS_fnc_randomPos;
-	[_pos, west, 2 + floor random 8] call BIS_fnc_spawnGroup;
+		if !(isNull _mount) then {_type = 2};
+		if !(isNull _town) then {_type = 3};
+		if !(isNull _hill) then {_type = 2};
+		if !(isNull _city) then {_type = 3};
+		if (surfaceIsWater _pos) then {_type = 0};
+		
+		AIX_GRID pushback [_pos, _type, 0, 0];
+    };
 };
 
-for "_i" from 1 to 16 do {
-	_pos = [["AIX_SPAWN_OPF"], [], {getpos nearestObject _this distance _this > 5}] call BIS_fnc_randomPos;
-	[_pos, east, 2 + floor random 8] call BIS_fnc_spawnGroup;
-};
+{
+	private _idx = _forEachIndex;
+	private _pos = _x select 0;
+	private _type = _x select 1;
+	private _mrkName = "AIX_" + str _pos;
+	private _mrk = createMarker ["AIX_" + str _pos, _pos];
+	_mrkName setMarkerPos _pos;
+	_mrkName setMarkerShape "RECTANGLE";
+	_mrkName setMarkerSize [AIX_SIZE / 2, AIX_SIZE / 2];
+	_brush = "Solid";
+	_alpha = 0.5;
+	if (_type == 0) then {_brush = "Cross"; _alpha = 0.25};
+	if (_type == 2) then {_brush = "FDiagonal"; _alpha = 1};
+	if (_type == 3) then {_brush = "BDiagonal"; _alpha = 1};
+	_mrkName setMarkerBrush _brush;
+	_mrkName setMarkerAlpha _alpha;
+}forEach AIX_GRID;
 
 sleep 1;
 
+/// spawn random INF
+for "_i" from 1 to 12 do {
+	_pos = [["AIX_SPAWN_BLU"], [], {
+		private _pos = _this;
+		private _inOBJ = false;
+		{
+			if (_pos distance (_x select 0) < AIX_SIZE) then {_inOBJ = true};
+		}forEach AIX_GRID;
+		(getPosASL nearestObject _this) distance _this > 5 && _inOBJ
+	}] call BIS_fnc_randomPos;
+	[_pos, west, 4 + floor random 6] call BIS_fnc_spawnGroup;
+};
+
+for "_i" from 1 to 12 do {
+	_pos = [["AIX_SPAWN_OPF"], [], {
+		private _pos = _this;
+		private _inOBJ = false;
+		{
+			if (_pos distance (_x select 0) < AIX_SIZE) then {_inOBJ = true};
+		}forEach AIX_GRID;
+		(getPosASL nearestObject _this) distance _this > 5 && _inOBJ
+	}] call BIS_fnc_randomPos;
+	[_pos, east, 4 + floor random 6] call BIS_fnc_spawnGroup;
+};
+
 [] spawn {
-	sleep 1;
-	private _groupsAI = execVM "groupsAI.sqf";
-	waitUntil {scriptDone _groupsAI};
-	sleep 1;
-	private _stratAI = execVM "stratAI.sqf";
-	waitUntil {scriptDone _stratAI};
-	sleep 1;
-	private _opsAI = execVM "opsAI.sqf";
-	waitUntil {scriptDone _opsAI};
-	sleep 1;
-	private _tasksAI = execVM "tasksAI.sqf";
-	waitUntil {scriptDone _tasksAI};
-	sleep 1;
-	///private _tacAI = execVM "tacAI.sqf";
-	///waitUntil {scriptDone _tacAI};
+	while {true} do	{
+		private _classAI = execVM "classAI.sqf";
+		waitUntil {scriptDone _classAI};
+		private _stratAI = execVM "stratAI.sqf";
+		waitUntil {scriptDone _stratAI};
+		///sleep 0.5;
+		///private _opsAI = execVM "opsAI.sqf";
+		///waitUntil {scriptDone _opsAI};
+		///sleep 1;
+		///private _tasksAI = execVM "tasksAI.sqf";
+		///waitUntil {scriptDone _tasksAI};
+		///sleep 1;
+		///private _tacAI = execVM "tacAI.sqf";
+		///waitUntil {scriptDone _tacAI};
+	}
 };

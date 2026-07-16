@@ -1,48 +1,87 @@
 /// TODO: MAKE TASK GROUPS FOR TASKS (2x default rec, 1x default defend, 0x default attack
 /// 	MAKE UNASSIGED GROUPS DO WAIT TASK?
 
-/// Assign tasks to groups
-{
-	private _grp = _x;
-	private _val = _grp getVariable "AIX_VAL";
-	private _task = [AIX_CENT_BLU, _grp, 0, AIX_SIZE * 2]; /// Default FOB patrol
-	
-	if (count AIX_REC_BLU > 0) then {
-		private _select = AIX_REC_BLU select floor random count AIX_REC_BLU;
-		private _pos = _select select 0;
-		private _rsk = 0;
-		private _ctrl = _select select 1;
-		if (_ctrl == 0) then {_rsk = 1}; /// FLIP FOR OPF
-		if (_ctrl == 2) then {_rsk = 2}; /// FLIP FOR OPF
-		private _isSec = _select select 2;
-		
-		_rad = AIX_SIZE * 2;
-		if (_isSec) then {_rad = AIX_SIZE};
-		_task = [_pos, _grp, _rsk, _rad];
-	};
-	
-	_task call AIX_FNC_RECON
-}forEach AIX_REC_G_BLU;
+/// Assign task formations (based on personality)
+AIX_ATK_F_BLU = [];
+AIX_DEF_F_BLU = [];
+AIX_REC_F_BLU = [];
+private _bluATK = ceil ((count AIX_ATK_G_BLU) / (AIX_CMD_BLU select 6));
+private _bluDEF = ceil ((count AIX_DEF_G_BLU) / (AIX_CMD_BLU select 7));
+private _bluREC = ceil ((count AIX_REC_G_BLU) / (AIX_CMD_BLU select 8));
 
+AIX_ATK_F_OPF = [];
+AIX_DEF_F_OPF = [];
+AIX_REC_F_OPF = [];
+private _opfATK = ceil ((count AIX_ATK_G_OPF) / (AIX_CMD_OPF select 6));
+private _opfDEF = ceil ((count AIX_DEF_G_OPF) / (AIX_CMD_OPF select 7));
+private _opfREC = ceil ((count AIX_REC_G_OPF) / (AIX_CMD_OPF select 8));
+
+for "_i" from 1 to _bluATK do {
+	private _formation = AIX_ATK_G_BLU select [0, (AIX_CMD_BLU select 6)];
+	AIX_ATK_F_BLU pushback _formation;
+	AIX_ATK_G_BLU = AIX_ATK_G_BLU - _formation;
+};
+
+for "_i" from 1 to _bluDEF do {
+	private _formation = AIX_DEF_G_BLU select [0, (AIX_CMD_BLU select 7)];
+	AIX_DEF_F_BLU pushback _formation;
+	AIX_DEF_G_BLU = AIX_DEF_G_BLU - _formation;
+};
+
+for "_i" from 1 to _bluREC do {
+	private _formation = AIX_REC_G_BLU select [0, (AIX_CMD_BLU select 8)];
+	AIX_REC_F_BLU pushback _formation;
+	AIX_REC_G_BLU = AIX_REC_G_BLU - _formation;
+};
+
+for "_i" from 1 to _opfATK do {
+	private _formation = AIX_ATK_G_OPF select [0, (AIX_CMD_OPF select 6)];
+	AIX_ATK_F_OPF pushback _formation;
+	AIX_ATK_G_OPF = AIX_ATK_G_OPF - _formation;
+};
+
+for "_i" from 1 to _opfDEF do {
+	private _formation = AIX_DEF_G_OPF select [0, (AIX_CMD_OPF select 7)];
+	AIX_DEF_F_OPF pushback _formation;
+	AIX_DEF_G_OPF = AIX_DEF_G_OPF - _formation;
+};
+
+for "_i" from 1 to _opfREC do {
+	private _formation = AIX_REC_G_OPF select [0, (AIX_CMD_OPF select 8)];
+	AIX_REC_F_OPF pushback _formation;
+	AIX_REC_G_OPF = AIX_REC_G_OPF - _formation;
+};
+
+/// TASKS SYSTEM: [_pos, _type, _risk, _sizeMod]
 {
-	private _grp = _x;
-	private _val = _grp getVariable "AIX_VAL";
-	private _veh = false;
-	private _task = [[[[AIX_CENT_BLU, AIX_SIZE]], []] call BIS_fnc_randomPos, _grp, _veh, AIX_CENT_BLU getDir AIX_CENT_OPF]; /// Default FOB defence	
+	private _types = ["DEFEND"];
+	private _force = 0;
+	private _groups = _x;
 	
-	if (count AIX_DEF_BLU > 0) then {
-		private _select = AIX_DEF_BLU select floor random count AIX_DEF_BLU;
-		private _pos = _select select 0;
-		private _isSec = _select select 2;
-		private _rad = AIX_SIZE;
-		if (_isSec) then {_rad = AIX_SIZE / 2};
-		private _pos = [[[_pos, _rad]], ["water"]] call BIS_fnc_randomPos;
-		private _dir = _pos getDir AIX_CENT_OPF;
-		_task = [_pos, _grp, _veh, _dir];
+	{
+		_force = _force + (_x getVariable "AIX_ATK");
+	}forEach _groups;
+	
+	private _tasks = AIX_TASKS_BLU select {
+		private _type = _x select 1;
+		private _risk = _x select 2;
+		
+		_type in _types && _risk <= _force;
 	};
 	
-	_task call AIX_FNC_DEFEND
-}forEach AIX_DEF_G_BLU;
+	if (count _tasks > 0) then {
+		_task = _tasks select floor random count _tasks; /// change to be based on formation position etc...?
+		AIX_TASKS_BLU = AIX_TASKS_BLU - _task;
+		
+		{
+			private _pos = _task select 0;
+			private _grp = _x;
+			private _veh = false;
+			private _dir = _pos getDir AIX_CENT_OPF;
+			[_pos, _grp, _veh, _dir] call AIX_FNC_DEFEND;
+		}forEach _groups;
+	};
+}forEach AIX_DEF_F_BLU;
 
 /// Tasks:
 /// ATTACK (OBJ), ATTACK (GRP), ATTACK (FOB)

@@ -1247,3 +1247,838 @@ _fnc_patrol = {
 			_dbgMrk setMarkerText _dbgText;
 		}forEach _x;
 	}forEach [AIX_ATK_OPF, AIX_DEF_OPF, AIX_REC_OPF];
+	
+	{
+	private _grp = _x;
+	private _val = _grp getVariable "AIX_VAL";
+	private _task = [AIX_CENT_BLU, _grp, 0, AIX_SIZE * 2]; /// Default FOB patrol
+	
+	if (count AIX_REC_BLU > 0) then {
+		private _select = AIX_REC_BLU select floor random count AIX_REC_BLU;
+		private _pos = _select select 0;
+		private _rsk = 0;
+		private _ctrl = _select select 1;
+		if (_ctrl == 0) then {_rsk = 1}; /// FLIP FOR OPF
+		if (_ctrl == 2) then {_rsk = 2}; /// FLIP FOR OPF
+		private _isSec = _select select 2;
+		
+		_rad = AIX_SIZE * 2;
+		if (_isSec) then {_rad = AIX_SIZE};
+		_task = [_pos, _grp, _rsk, _rad];
+	};
+	
+	_task call AIX_FNC_RECON
+}forEach AIX_REC_G_BLU;
+
+{
+	private _grp = _x;
+	private _val = _grp getVariable "AIX_VAL";
+	private _veh = false;
+	private _task = [[[[AIX_CENT_BLU, AIX_SIZE]], []] call BIS_fnc_randomPos, _grp, _veh, AIX_CENT_BLU getDir AIX_CENT_OPF]; /// Default FOB defence	
+	
+	if (count AIX_DEF_BLU > 0) then {
+		private _select = AIX_DEF_BLU select floor random count AIX_DEF_BLU;
+		private _pos = _select select 0;
+		private _isSec = _select select 2;
+		private _rad = AIX_SIZE;
+		if (_isSec) then {_rad = AIX_SIZE / 2};
+		private _pos = [[[_pos, _rad]], ["water"]] call BIS_fnc_randomPos;
+		private _dir = _pos getDir AIX_CENT_OPF;
+		_task = [_pos, _grp, _veh, _dir];
+	};
+	
+	_task call AIX_FNC_DEFEND
+}forEach AIX_DEF_G_BLU;
+
+
+/// objective tracking
+/// [_pos, _size, _control];
+
+{
+	private _pos = _x select 0;
+	private _size = _x select 1;
+	private _ctrl = _x select 2;
+
+	private _blu = false;
+	private _opf = false;
+	
+	{
+		private _grp = _x;
+		private _ldr = leader _grp;
+		private _side = side _grp;
+		private _posLdr = getPosATL _ldr;
+		private _dist = _posLdr distance _pos;
+		
+		if (_side == AIX_BLU && _dist < _size) then {_blu = true};
+		if (_side == AIX_OPF && _dist < _size) then {_opf = true};
+	}forEach allGroups;
+	
+	/// DO NOT SET TO: _obj set [2, 0]; ACTS AS "MEMORY"
+	if (_blu) then {_ctrl= "ColorWEST"};
+	if (_opf) then {_ctrl = "ColorEAST"};
+	if (_blu && _opf) then {_ctrl = "ColorCIV"};
+	
+	_x set [2, _ctrl];
+	if (AIX_DEBUG) then {
+		(str _pos) setMarkerColor _ctrl;
+	};
+}forEach AIX_OBJ;
+
+/// set strategy mode
+AIX_MODE_BLU = "GAMBIT";
+AIX_MODE_OPF = "GAMBIT";
+
+if (AIX_VAL_WEST * 0.5 > AIX_VAL_EAST) then {AIX_MODE_BLU = "ATTACK", AIX_MODE_OPF = "DEFEND"};
+if (AIX_VAL_EAST * 0.5 > AIX_VAL_WEST) then {AIX_MODE_BLU = "ATTACK", AIX_MODE_OPF = "DEFEND"};
+
+if (AIX_MODE_BLU == "GAMBIT") then {
+	AIX_ATK_BLU = AIX_OBJ select {_x select 2 in ["ColorEAST", "ColorCIV"]}; /// Attack/Flank
+	AIX_DEF_BLU = AIX_OBJ select {_x select 2 in ["ColorWEST"]}; /// Defend
+	AIX_REC_BLU = AIX_OBJ select {_x select 2 in ["Default"]}; /// Recon
+};
+
+if (AIX_MODE_BLU == "ATTACK") then {
+	AIX_ATK_BLU = AIX_OBJ select {_x select 2 in ["ColorCIV"]}; /// Attack (Only reconed objectives!)
+	AIX_DEF_BLU = AIX_OBJ select {_x select 2 in ["ColorWEST"]}; /// Defend
+	AIX_REC_BLU = AIX_OBJ select {_x select 2 in ["ColorEAST"]}; /// Probe
+};
+
+if (AIX_MODE_BLU == "DEFEND") then {
+	AIX_ATK_BLU = AIX_OBJ select {_x select 2 in ["ColorCIV"]}; /// Counter-Attack
+	AIX_DEF_BLU = AIX_OBJ select {_x select 2 in ["ColorWEST"]}; /// Defend
+	AIX_REC_BLU = AIX_OBJ select {_x select 2 in ["Default"]}; /// Recon
+};
+
+if (AIX_MODE_OPF == "GAMBIT") then {
+	AIX_ATK_OPF = AIX_OBJ select {_x select 2 in ["ColorWEST", "ColorCIV"]}; /// Attack/Flank
+	AIX_DEF_OPF = AIX_OBJ select {_x select 2 in ["ColorEAST"]}; /// Defend
+	AIX_REC_OPF = AIX_OBJ select {_x select 2 in ["Default"]}; /// Recon
+};
+
+if (AIX_MODE_OPF == "ATTACK") then {
+	AIX_ATK_OPF = AIX_OBJ select {_x select 2 in ["ColorCIV"]}; /// Attack (Only reconed objectives!)
+	AIX_DEF_OPF = AIX_OBJ select {_x select 2 in ["ColorEAST"]}; /// Defend
+	AIX_REC_OPF = AIX_OBJ select {_x select 2 in ["ColorWEST"]}; /// Probe
+};
+
+if (AIX_MODE_OPF == "DEFEND") then {
+	AIX_ATK_OPF = AIX_OBJ select {_x select 2 in ["ColorCIV"]}; /// Counter-Attack
+	AIX_DEF_OPF = AIX_OBJ select {_x select 2 in ["ColorEAST"]}; /// Defend
+	AIX_REC_OPF = AIX_OBJ select {_x select 2 in ["Default"]}; /// Recon
+};
+
+/// Sort objectives based on distance
+AIX_ATK_BLU = [AIX_ATK_BLU, [], {(_x select 0) distance AIX_POS_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_REC_BLU = [AIX_REC_BLU, [], {(_x select 0) distance AIX_POS_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_DEF_BLU = [AIX_DEF_BLU, [], {(_x select 0) distance AIX_POS_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
+
+AIX_ATK_OPF = [AIX_ATK_OPF, [], {(_x select 0) distance AIX_POS_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_REC_OPF = [AIX_REC_OPF, [], {(_x select 0) distance AIX_POS_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_DEF_OPF = [AIX_DEF_OPF, [], {(_x select 0) distance AIX_POS_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+
+/// Limit objectives
+AIX_ATK_BLU = AIX_ATK_BLU select [0, 1];
+AIX_DEF_BLU = AIX_DEF_BLU select [0, 2];
+AIX_REC_BLU = AIX_REC_BLU select [0, 3];
+AIX_ATK_OPF = AIX_ATK_OPF select [0, 1];
+AIX_DEF_OPF = AIX_DEF_OPF select [0, 2];
+AIX_REC_OPF = AIX_REC_OPF select [0, 3];
+
+if (AIX_DEBUG) then {
+
+	systemchat (str _bluForce);
+
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_ATK_BLU_" + str _idx, _pos];
+		_mrk setMarkerType "hd_warning";
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_ATK_BLU;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_REC_BLU_" + str _idx, _pos];
+		_mrk setMarkerType "hd_unknown";
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_REC_BLU;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_DEF_BLU_" + str _idx, _pos];
+		_mrk setMarkerType "hd_flag";
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_DEF_BLU;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_ATK_OPF_" + str _idx, _pos];
+		_mrk setMarkerType "hd_warning";
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_ATK_OPF;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_REC_OPF_" + str _idx, _pos];
+		_mrk setMarkerType "hd_unknown";
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_REC_OPF;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_DEF_OPF_" + str _idx, _pos];
+		_mrk setMarkerType "hd_flag";
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_DEF_OPF;
+};
+
+
+/// set strategy mode
+AIX_MODE_BLU = "GAMBIT";
+AIX_MODE_OPF = "GAMBIT";
+
+if (AIX_VAL_BLU * 0.5 > AIX_VAL_OPF) then {AIX_MODE_BLU = "ATTACK", AIX_MODE_OPF = "DEFEND"};
+if (AIX_VAL_OPF * 0.5 > AIX_VAL_BLU) then {AIX_MODE_OPF = "ATTACK", AIX_MODE_BLU = "DEFEND"};
+
+if (AIX_MODE_BLU == "GAMBIT") then {
+	AIX_ATK_BLU = AIX_OBJ select {_x select 2 in ["ColorEAST", "ColorCIV"]}; /// Attack/Flank
+	AIX_DEF_BLU = AIX_OBJ select {_x select 2 in ["ColorWEST"]}; /// Defend
+	AIX_REC_BLU = AIX_OBJ select {_x select 2 in ["Default"]}; /// Recon
+};
+
+if (AIX_MODE_BLU == "ATTACK") then {
+	AIX_ATK_BLU = AIX_OBJ select {_x select 2 in ["ColorCIV"]}; /// Attack (Only reconed objectives!)
+	AIX_DEF_BLU = AIX_OBJ select {_x select 2 in ["ColorWEST"]}; /// Defend
+	AIX_REC_BLU = AIX_OBJ select {_x select 2 in ["ColorEAST"]}; /// Probe
+};
+
+if (AIX_MODE_BLU == "DEFEND") then {
+	AIX_ATK_BLU = AIX_OBJ select {_x select 2 in ["ColorCIV"]}; /// Counter-Attack
+	AIX_DEF_BLU = AIX_OBJ select {_x select 2 in ["ColorWEST"]}; /// Defend
+	AIX_REC_BLU = AIX_OBJ select {_x select 2 in ["Default"]}; /// Recon
+};
+
+if (AIX_MODE_OPF == "GAMBIT") then {
+	AIX_ATK_OPF = AIX_OBJ select {_x select 2 in ["ColorWEST", "ColorCIV"]}; /// Attack/Flank
+	AIX_DEF_OPF = AIX_OBJ select {_x select 2 in ["ColorEAST"]}; /// Defend
+	AIX_REC_OPF = AIX_OBJ select {_x select 2 in ["Default"]}; /// Recon
+};
+
+if (AIX_MODE_OPF == "ATTACK") then {
+	AIX_ATK_OPF = AIX_OBJ select {_x select 2 in ["ColorCIV"]}; /// Attack (Only reconed objectives!)
+	AIX_DEF_OPF = AIX_OBJ select {_x select 2 in ["ColorEAST"]}; /// Defend
+	AIX_REC_OPF = AIX_OBJ select {_x select 2 in ["ColorWEST"]}; /// Probe
+};
+
+if (AIX_MODE_OPF == "DEFEND") then {
+	AIX_ATK_OPF = AIX_OBJ select {_x select 2 in ["ColorCIV"]}; /// Counter-Attack
+	AIX_DEF_OPF = AIX_OBJ select {_x select 2 in ["ColorEAST"]}; /// Defend
+	AIX_REC_OPF = AIX_OBJ select {_x select 2 in ["Default"]}; /// Recon
+};
+
+/// Sort objectives based on distance
+AIX_ATK_BLU = [AIX_ATK_BLU, [], {(_x select 0) distance AIX_POS_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_REC_BLU = [AIX_REC_BLU, [], {(_x select 0) distance AIX_POS_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_DEF_BLU = [AIX_DEF_BLU, [], {(_x select 0) distance AIX_POS_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
+
+AIX_ATK_OPF = [AIX_ATK_OPF, [], {(_x select 0) distance AIX_POS_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_REC_OPF = [AIX_REC_OPF, [], {(_x select 0) distance AIX_POS_OPF}, "ASCEND", {true}] call BIS_fnc_sortBy;
+AIX_DEF_OPF = [AIX_DEF_OPF, [], {(_x select 0) distance AIX_POS_BLU}, "ASCEND", {true}] call BIS_fnc_sortBy;
+
+/// Limit objectives
+AIX_ATK_BLU = AIX_ATK_BLU select [0, 1];
+AIX_DEF_BLU = AIX_DEF_BLU select [0, 2];
+AIX_REC_BLU = AIX_REC_BLU select [0, 3];
+AIX_ATK_OPF = AIX_ATK_OPF select [0, 1];
+AIX_DEF_OPF = AIX_DEF_OPF select [0, 2];
+AIX_REC_OPF = AIX_REC_OPF select [0, 3];
+
+if (AIX_DEBUG) then {
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_ATK_BLU_" + str _idx, _pos];
+		_mrk setMarkerType "hd_warning";
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_ATK_BLU;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_REC_BLU_" + str _idx, _pos];
+		_mrk setMarkerType "hd_unknown";
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_REC_BLU;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_DEF_BLU_" + str _idx, _pos];
+		_mrk setMarkerType "hd_flag";
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_DEF_BLU;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_ATK_OPF_" + str _idx, _pos];
+		_mrk setMarkerType "hd_warning";
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_ATK_OPF;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_REC_OPF_" + str _idx, _pos];
+		_mrk setMarkerType "hd_unknown";
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_REC_OPF;
+	
+	{
+		private _pos = _x select 0;
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["AIX_DEF_OPF_" + str _idx, _pos];
+		_mrk setMarkerType "hd_flag";
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerText str _idx;
+	}forEach AIX_DEF_OPF;
+};
+
+/// spawn random vehicles
+
+private _vehsBLU = [];
+private _weightsBLU = [];
+private _maxCostBLU = 0;
+
+private _cfgBLU = "
+		getNumber (_x >> 'side') == 1 &&
+		getText (_x >> 'faction') == 'BLU_F' &&
+		getNumber (_x >> 'isMan') == 0
+	" configClasses (configFile >> "CfgVehicles");
+{
+	_vehsBLU pushBack (configName _x);
+	 private _cost = (getNumber (_x >> 'cost'));
+	_weightsBLU pushBack _cost;
+	if (_cost > _maxCostBlu) then {_maxCostBlu = _cost};
+}forEach _cfgBLU;
+
+{
+	
+	private _idx = _forEachIndex;
+	_weight = 1.01 - (_x / _maxCostBLU);
+    _weightsBLU set [_idx, _weight];
+}forEach _weightsBLU;
+
+for "_i" from 1 to 5 do {
+		_pos = [["AIX_SPAWN_BLU"], [], {
+		private _pos = _this;
+		private _inOBJ = false;
+		{
+			private _size = _x select 1;
+			if (_pos distance (_x select 0) < _size) then {_inOBJ = true};
+		}forEach AIX_OBJ;
+		(getPosASL nearestObject _this) distance _this > 5 && _inOBJ
+	}] call BIS_fnc_randomPos;
+	
+	private _type = _vehsBLU selectRandomWeighted _weightsBLU;
+	
+	[_pos, random 360, _type, west] call BIS_fnc_spawnVehicle;
+	systemchat _type;
+};
+
+private _vehsOPF = [];
+private _weightsOPF = [];
+private _maxCostOPF = 0;
+
+private _cfgOPF = "
+		getNumber (_x >> 'side') == 0 &&
+		getText (_x >> 'faction') == 'OPF_F' &&
+		getNumber (_x >> 'isMan') == 0
+	" configClasses (configFile >> "CfgVehicles");
+{
+	_vehsOPF pushBack (configName _x);
+	 private _cost = (getNumber (_x >> 'cost'));
+	_weightsOPF pushBack _cost;
+	if (_cost > _maxCostOPF) then {_maxCostOPF = _cost};
+}forEach _cfgOPF;
+
+{
+	
+	private _idx = _forEachIndex;
+	_weight = 1.01 - (_x / _maxCostOPF);
+    _weightsOPF set [_idx, _weight];
+}forEach _weightsOPF;
+
+for "_i" from 1 to 5 do {
+		_pos = [["AIX_SPAWN_OPF"], [], {
+		private _pos = _this;
+		private _inOBJ = false;
+		{
+			private _size = _x select 1;
+			if (_pos distance (_x select 0) < _size) then {_inOBJ = true};
+		}forEach AIX_OBJ;
+		(getPosASL nearestObject _this) distance _this > 5 && _inOBJ
+	}] call BIS_fnc_randomPos;
+	
+	private _type = _vehsOPF selectRandomWeighted _weightsOPF;
+	
+	[_pos, random 360, _type, east] call BIS_fnc_spawnVehicle;
+};
+
+
+		_color = format ["#(%1, 0, %2, %3)", _opf min 1, _blu min 1, _bluCMD max 0.1];
+		(str _pos) setMarkerColor _color;
+		
+		
+				if (_side == AIX_BLU && _dist < (_size * 2) && !(_side == AIX_BLU && _dist < (_size))) then {_recBLU = _recBLU - 1, _defBLU = _defBLU - 1, _atkBLU = _atkBLU - 1};
+		if (_side == AIX_OPF && _dist < (_size * 2) && ) then {_recOPF = _recOPF - 1, _defOPF = _defOPF - 1, _atkOPF = _atkOPF - 1};
+		if (_side == AIX_BLU && _dist < _size) then {_defBLU = _defBLU - 1, _defOPF = _defOPF - 1, _atkOPF = _atkOPF + 1};
+		if (_side == AIX_OPF && _dist < _size) then {_defOPF = _defOPF - 1, _defBLU = _defBLU - 1, _atkBLU = _atkBLU + 1};
+		
+		
+		/// Objective max distance
+
+private _maxDistBLU = 1;
+private _maxDistOPF = 1;
+
+{
+	private _pos = _x select 0;
+	private _distBLU = _pos distance AIX_POS_BLU;
+	private _distOPF = _pos distance AIX_POS_OPF;
+	
+	if (_distBLU > _maxDistBLU) then {_maxDistBLU = _distBLU};
+	if (_distOPF > _maxDistOPF) then {_maxDistOPF = _distOPF};
+}forEach AIX_OBJ;
+
+/// objective control & priority
+
+{
+	private _pos = _x select 0;
+	private _size = _x select 1;
+	private _ctrl = "default";
+	private _idx = _forEachIndex;
+	
+	private _mod = _size / 100;
+
+	private _atkBLU = 0;
+	private _atkOPF = 0;
+	private _defBLU = _mod;
+	private _defOPF = _mod;
+	private _recBLU = _mod;
+	private _recOPF = _mod;
+	
+	{
+		private _grp = _x;
+		private _ldr = leader _grp;
+		private _side = side _grp;
+		private _posLdr = getPosATL _ldr;
+		private _dist = _posLdr distance _pos;
+		
+		if (_side == AIX_BLU) then {
+			if (_dist < _size) then {
+				_atkOPF = _atkOPF + 1;
+				_defBLU = _defBLU - 1;
+			};
+			if (_dist < (_size + 500)) then {
+				_recBLU = _recBLU - 1;
+			};
+		};
+
+		if (_side == AIX_OPF) then {
+			if (_dist < _size) then {
+				_atkBLU = _atkBLU + 1;
+				_defBLU = _defBLU - 1;
+			};
+			if (_dist < (_size + 500)) then {
+				_recBLU = _recBLU - 1;
+			};
+		};		
+		
+	}forEach allGroups;
+	
+	_modBLU = 1 - ((_pos distance AIX_POS_BLU) / _maxDistBLU);
+	_modOPF = 1 - ((_pos distance AIX_POS_OPF) / _maxDistOPF);
+	
+	_defBLU = round (_defBLU * _modBLU);
+	_defOPF = round (_defOPF * _modOPF);
+	_recBLU = (round (_recBLU * _modBLU)) max 0;
+	_recOPF = (round (_recOPF * _modOPF)) max 0;
+	
+	///_atkBLU = (_atkBLU * _modBLU); _defBLU = (_defBLU * _modBLU); _recBLU = (_recBLU * _modBLU);
+	///_atkOPF = (_atkOPF * _modOPF); _defOPF = (_defOPF * _modOPF); _recOPF = (_recOPF * _modOPF);
+	
+	_x set [2, [_atkBLU, _defBLU, _recBLU]];
+	_x set [3, [_atkOPF, _defOPF, _recOPF]];
+	
+	if (AIX_DEBUG) then {
+		private _mrkBLU = createMarker ["AIX_BLU_" + str _idx, _pos];
+		_mrkBLU setMarkerType "hd_dot";
+		_mrkBLU setMarkerColor "ColorWEST";
+		_mrkBLU setMarkerText str [_atkBLU, _defBLU, _recBLU];
+
+		private _mrkOPF = createMarker ["AIX_OPF_" + str _idx, [(_pos select 0), (_pos select 1) + 50]];
+		_mrkOPF setMarkerType "hd_dot";
+		_mrkOPF setMarkerColor "ColorEAST";
+		_mrkOPF setMarkerText str [_atkOPF, _defOPF, _recOPF];
+		
+	};
+}forEach AIX_OBJ;
+
+if (AIX_DEBUG) then {
+	{
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["BLU_ATK" + str _idx, _x select 0];
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerType "mil_warning";
+		_mrk setMarkerText (str _idx);
+		_mrk setMarkerAlpha 0.5;
+	}forEach AIX_ATK_BLU;
+	
+	{
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["BLU_DEF" + str _idx, _x select 0];
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerType "mil_circle";
+		_mrk setMarkerText (str _idx);
+		_mrk setMarkerAlpha 0.5;
+	}forEach AIX_DEF_BLU;
+	
+	{
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["BLU_REC" + str _idx, _x select 0];
+		_mrk setMarkerColor "ColorWEST";
+		_mrk setMarkerType "mil_unknown";
+		_mrk setMarkerText (str _idx);
+		_mrk setMarkerAlpha 0.5;
+	}forEach AIX_REC_BLU;
+	
+		{
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["OPF_ATK" + str _idx, _x select 0];
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerType "mil_warning";
+		_mrk setMarkerText (str _idx);
+		_mrk setMarkerAlpha 0.5;
+	}forEach AIX_ATK_OPF;
+	
+	{
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["OPF_DEF" + str _idx, _x select 0];
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerType "mil_circle";
+		_mrk setMarkerText (str _idx);
+		_mrk setMarkerAlpha 0.5;
+	}forEach AIX_DEF_OPF;
+	
+	{
+		private _idx = _forEachIndex;
+		private _mrk = createMarker ["OPF_REC" + str _idx, _x select 0];
+		_mrk setMarkerColor "ColorEAST";
+		_mrk setMarkerType "mil_unknown";
+		_mrk setMarkerText (str _idx);
+		_mrk setMarkerAlpha 0.5;
+	}forEach AIX_REC_OPF;
+};
+
+/// save side center for later use, save commander wights for later use
+AIX_TOT_BLU = 0;
+AIX_VAL_BLU = 0;
+AIX_POS_BLU = [0, 0];
+AIX_CMD_BLU = [0, 0, 0];
+AIX_GRP_BLU = [];
+
+AIX_TOT_OPF = 0;
+AIX_VAL_OPF = 0;
+AIX_POS_OPF = [0, 0];
+AIX_CMD_OPF = [0, 0, 0];
+AIX_GRP_OPF = [];
+
+{
+	private _grp = _x;
+	private _cat = _grp getVariable "AIX_CAT";
+	private _atk = _grp getVariable "AIX_ATK";
+	private _def = _grp getVariable "AIX_DEF";
+	private _rec = _grp getVariable "AIX_REC";
+	private _val = _grp getVariable "AIX_VAL";
+	
+	private _id = groupID _grp;
+	private _side = side _grp;
+	private _ldr = leader _grp;
+	private _pos = getPosATL _ldr;
+	private _posX = _pos select 0;
+	private _posY = _pos select 1;
+	
+	if (isNil "_cat") then {
+		if (AIX_DEBUG) then {
+			diag_log format ["%1, %2, %3", "AIX groupsAI.sqf skipped group:", _side, _id];
+		};	
+		continue;
+	};
+	
+	if (side _grp == AIX_BLU) then {
+		AIX_TOT_BLU = AIX_TOT_BLU + 1;
+		AIX_CMD_BLU = [(AIX_CMD_BLU select 0) + _atk, (AIX_CMD_BLU select 1) + _def, (AIX_CMD_BLU select 2) + _rec];
+		AIX_VAL_BLU = AIX_VAL_BLU + _val;
+		AIX_POS_BLU = [(AIX_POS_BLU select 0) + _posX,(AIX_POS_BLU select 1) + _posY];
+		AIX_GRP_BLU pushback [_grp, _cat, _atk, _def, _rec, _val];
+	};
+	
+	if (side _grp == AIX_OPF) then {
+		AIX_TOT_OPF = AIX_TOT_OPF + 1;
+		AIX_CMD_OPF = [(AIX_CMD_OPF select 0) + _atk, (AIX_CMD_OPF select 1) + _def, (AIX_CMD_OPF select 2) + _rec];
+		AIX_VAL_OPF = AIX_VAL_OPF + _val;
+		AIX_POS_OPF = [(AIX_POS_OPF select 0) + _posX,(AIX_POS_OPF select 1) + _posY];
+		AIX_GRP_OPF pushback [_grp, _cat, _atk, _def, _rec, _val];
+	};
+	
+}forEach allGroups;
+
+AIX_POS_BLU = [(AIX_POS_BLU select 0) / AIX_TOT_BLU, (AIX_POS_BLU select 1) / AIX_TOT_BLU];
+AIX_POS_OPF = [(AIX_POS_OPF select 0) / AIX_TOT_OPF, (AIX_POS_OPF select 1) / AIX_TOT_OPF];
+
+_cmdTOTBLu = (AIX_CMD_BLU select 0) + (AIX_CMD_BLU select 1) + (AIX_CMD_BLU select 2);
+_cmdTOTOpf = (AIX_CMD_OPF select 0) + (AIX_CMD_OPF select 1) + (AIX_CMD_OPF select 2);
+AIX_CMD_BLU = [(AIX_CMD_BLU select 0) / _cmdTOTBLu, (AIX_CMD_BLU select 1) / _cmdTOTBLu, (AIX_CMD_BLU select 2) / _cmdTOTBLu];
+AIX_CMD_OPF = [(AIX_CMD_OPF select 0) / _cmdTOTOPF, (AIX_CMD_OPF select 1) / _cmdTOTOPF, (AIX_CMD_OPF select 2) / _cmdTOTOPF];
+
+if (AIX_DEBUG) then {
+	systemchat ("BLU TOT/VAL: " + str [AIX_TOT_BLU, AIX_VAL_BLU] + " BLU_CMD: " + str AIX_CMD_BLU);
+	systemchat ("OPF TOT/VAL: " + str [AIX_TOT_OPF, AIX_VAL_OPF] + " OPF_CMD: " + str AIX_CMD_OPF);
+	_mrkBLU = createMarker ["AIX_BLU", AIX_POS_BLU];
+	_mrkBLU setMarkerType "b_hq";
+	_mrkOPF = createMarker ["AIX_OPF", AIX_POS_OPF];
+	_mrkOPF setMarkerType "o_hq";
+};
+
+/// Objective max distance
+
+private _maxDistBLU = 1;
+private _maxDistOPF = 1;
+
+{
+	private _pos = _x select 0;
+	private _distBLU = _pos distance AIX_POS_BLU;
+	private _distOPF = _pos distance AIX_POS_OPF;
+	
+	if (_distBLU > _maxDistBLU) then {_maxDistBLU = _distBLU};
+	if (_distOPF > _maxDistOPF) then {_maxDistOPF = _distOPF};
+}forEach AIX_OBJ;
+
+/// objective weights
+
+{
+	private _pos = _x select 0;
+	private _size = _x select 1;
+	private _ctrl = "default";
+	private _idx = _forEachIndex;
+	
+	private _mod = _size / 10;
+
+	private _riskBLU = 0;
+	private _riskOPF = 0;
+	private _rewardBLU = _mod;
+	private _rewardOPF = _mod;
+	private _infoBLU = _mod / 10;
+	private _infoOPF = _mod / 10;
+	
+	{
+		private _grp = _x;
+		private _ldr = leader _grp;
+		private _side = side _grp;
+		private _posLdr = getPosATL _ldr;
+		private _dist = _posLdr distance _pos;
+		
+		private _val = _grp getVariable "AIX_DEF";
+		if (isNil "_val") then {continue};
+		
+		if (_side == AIX_BLU) then {
+			if (_dist < (_size max 500)) then {
+				_infoBLU = _infoBLU - 1;
+				_riskOPF = _riskOPF + _val;
+			};
+		};
+
+		if (_side == AIX_OPF) then {
+			if (_dist < (_size max 500)) then {
+				_infoOPF = _infoOPF - 1;
+				_riskBLU = _riskBLU + _val;
+			};
+		};	
+		
+	}forEach allGroups;
+	
+	_modBLU = 1 - ((_pos distance AIX_POS_BLU) / _maxDistBLU);
+	_modOPF = 1 - ((_pos distance AIX_POS_OPF) / _maxDistOPF);
+
+	_rewardBLU = round (_rewardBLU * _modBLU);
+	_infoBLU = round (_infoBLU * _modBLU);
+
+	_rewardOPF = round (_rewardOPF * _modOPF);
+	_infoOPF = round (_infoOPF * _modOPF);
+	
+	_x set [2, [_riskBLU, _rewardBLU, _infoBLU]];
+	_x set [3, [_riskOPF, _rewardOPF, _infoOPF]];
+	
+	if (AIX_DEBUG) then {
+		private _mrkBLU = createMarker ["AIX_BLU_" + str _idx, _pos];
+		_mrkBLU setMarkerType "hd_dot";
+		_mrkBLU setMarkerColor "ColorWEST";
+		_mrkBLU setMarkerText str [_riskBLU, _rewardBLU, _infoBLU];
+
+		private _mrkOPF = createMarker ["AIX_OPF_" + str _idx, [(_pos select 0), (_pos select 1) + 50]];
+		_mrkOPF setMarkerType "hd_dot";
+		_mrkOPF setMarkerColor "ColorEAST";
+		_mrkOPF setMarkerText str [_riskOPF, _rewardOPF, _infoOPF];
+		
+	};
+}forEach AIX_OBJ;
+
+
+/// save side center for later use, save commander wights for later use
+AIX_TOT_BLU = 0;
+AIX_VAL_BLU = 0;
+AIX_POS_BLU = [0, 0];
+AIX_CMD_BLU = [0, 0, 0];
+AIX_GRP_BLU = [];
+
+AIX_TOT_OPF = 0;
+AIX_VAL_OPF = 0;
+AIX_POS_OPF = [0, 0];
+AIX_CMD_OPF = [0, 0, 0];
+AIX_GRP_OPF = [];
+
+{
+	private _grp = _x;
+	private _cat = _grp getVariable "AIX_CAT";
+	private _atk = _grp getVariable "AIX_ATK";
+	private _def = _grp getVariable "AIX_DEF";
+	private _rec = _grp getVariable "AIX_REC";
+	private _val = _grp getVariable "AIX_VAL";
+	
+	private _id = groupID _grp;
+	private _side = side _grp;
+	private _ldr = leader _grp;
+	private _pos = getPosATL _ldr;
+	private _posX = _pos select 0;
+	private _posY = _pos select 1;
+	
+	if (isNil "_cat") then {
+		if (AIX_DEBUG) then {
+			diag_log format ["%1, %2, %3", "AIX groupsAI.sqf skipped group:", _side, _id];
+		};	
+		continue;
+	};
+	
+	if (side _grp == AIX_BLU) then {
+		AIX_TOT_BLU = AIX_TOT_BLU + 1;
+		AIX_CMD_BLU = [(AIX_CMD_BLU select 0) + _atk, (AIX_CMD_BLU select 1) + _def, (AIX_CMD_BLU select 2) + _rec];
+		AIX_VAL_BLU = AIX_VAL_BLU + _val;
+		AIX_POS_BLU = [(AIX_POS_BLU select 0) + _posX,(AIX_POS_BLU select 1) + _posY];
+		AIX_GRP_BLU pushback [_grp, _cat, _atk, _def, _rec, _val];
+	};
+	
+	if (side _grp == AIX_OPF) then {
+		AIX_TOT_OPF = AIX_TOT_OPF + 1;
+		AIX_CMD_OPF = [(AIX_CMD_OPF select 0) + _atk, (AIX_CMD_OPF select 1) + _def, (AIX_CMD_OPF select 2) + _rec];
+		AIX_VAL_OPF = AIX_VAL_OPF + _val;
+		AIX_POS_OPF = [(AIX_POS_OPF select 0) + _posX,(AIX_POS_OPF select 1) + _posY];
+		AIX_GRP_OPF pushback [_grp, _cat, _atk, _def, _rec, _val];
+	};
+	
+}forEach allGroups;
+
+AIX_POS_BLU = [(AIX_POS_BLU select 0) / AIX_TOT_BLU, (AIX_POS_BLU select 1) / AIX_TOT_BLU];
+AIX_POS_OPF = [(AIX_POS_OPF select 0) / AIX_TOT_OPF, (AIX_POS_OPF select 1) / AIX_TOT_OPF];
+
+_cmdTOTBLu = (AIX_CMD_BLU select 0) + (AIX_CMD_BLU select 1) + (AIX_CMD_BLU select 2);
+_cmdTOTOpf = (AIX_CMD_OPF select 0) + (AIX_CMD_OPF select 1) + (AIX_CMD_OPF select 2);
+AIX_CMD_BLU = [(AIX_CMD_BLU select 0) / _cmdTOTBLu, (AIX_CMD_BLU select 1) / _cmdTOTBLu, (AIX_CMD_BLU select 2) / _cmdTOTBLu];
+AIX_CMD_OPF = [(AIX_CMD_OPF select 0) / _cmdTOTOPF, (AIX_CMD_OPF select 1) / _cmdTOTOPF, (AIX_CMD_OPF select 2) / _cmdTOTOPF];
+
+if (AIX_DEBUG) then {
+	systemchat ("BLU TOT/VAL: " + str [AIX_TOT_BLU, AIX_VAL_BLU] + " BLU_CMD: " + str AIX_CMD_BLU);
+	systemchat ("OPF TOT/VAL: " + str [AIX_TOT_OPF, AIX_VAL_OPF] + " OPF_CMD: " + str AIX_CMD_OPF);
+	_mrkBLU = createMarker ["AIX_BLU", AIX_POS_BLU];
+	_mrkBLU setMarkerType "b_hq";
+	_mrkOPF = createMarker ["AIX_OPF", AIX_POS_OPF];
+	_mrkOPF setMarkerType "o_hq";
+};
+
+/// get primary objectives
+AIX_OBJ = [];
+private _AOsize = ((getMarkerSize "AIX_AO") select 0)*2;
+
+private _locs = [];
+private _locs = _locs + (nearestLocations [getMarkerPos "AIX_AO", ["NameCityCapital"], _AOsize]);
+private _locs = _locs + (nearestLocations [getMarkerPos "AIX_AO", ["Hill"],_AOsize]);
+private _locs = _locs + (nearestLocations [getMarkerPos "AIX_AO", ["NameCity"], _AOsize]);
+private _locs = _locs + (nearestLocations [getMarkerPos "AIX_AO", ["NameLocal"], _AOsize]);
+private _locs = _locs + (nearestLocations [getMarkerPos "AIX_AO", ["NameVillage"], _AOsize]);
+private _locs = _locs + (nearestLocations [getMarkerPos "AIX_AO", ["Mount"], _AOsize]);
+{
+	private _pos = position _x;
+	private _posX = round (_pos select 0);
+	private _posY = round (_pos select 1);
+	private _size = 200;
+	
+	/// Note: size also determines how many groups objective requires (divided by 100)
+	switch (type _x) do {
+		case "NameCityCapital": {_size = 300};
+		case "Hill": {_size = 300};
+		case "NameCity": {_size = 200};
+		case "NameLocal": {_size = 200};
+		case "NameVillage": {_size = 200};
+		case "Mount": {_size = 100};		
+	};
+	
+	private _close = false;
+	
+	{
+		private _pos2 = _x select 0;
+		private _size2 = _x select 1;
+		if (_pos2 distance _pos < _size2) then {_close = true};
+		if (_pos2 distance _pos < (_size * 2)) then {_close = true};
+	}forEach AIX_OBJ;
+	
+	if (_pos inArea "AIX_AO" && _close == false) then {
+		AIX_OBJ pushback [[_posX, _posY], _size, 0, 0]; /// [_pos, _size, _blu, _opf];
+	};
+}forEach _locs;
+
+
+AIX_STRAT_BLU = "GAMBIT"; /// Some sections attack, some defend
+AIX_STRAT_OPF = "GAMBIT";
+if (_val_blu * (AIX_CMD_BLU select 1) > _val_opf) then {AIX_STRAT_BLU = "ATTACK"}; /// All sections attack
+if (_val_blu * (AIX_CMD_BLU select 2) < _val_opf) then {AIX_STRAT_BLU = "DEFEND"}; /// All sections defend
+
+/// Create side AO
+createMarker ["AIX_AO_BLU", AIX_COM_BLU];
+"AIX_AO_BLU" setMarkerPos AIX_COM_BLU;
+"AIX_AO_BLU" setMarkerDir (AIX_COM_BLU getDir AIX_COM_OPF);
+private _aoSizeBlu = [750, 750];
+if (AIX_STRAT_BLU == "ATTACK") then {_aoSizeBlu = [500, 1000]};
+if (AIX_STRAT_BLU == "DEFEND") then {_aoSizeBlu = [1000, 500]};
+"AIX_AO_BLU" setMarkerBrush "Border";
+"AIX_AO_BLU" setMarkerColor "ColorWEST";
+"AIX_AO_BLU" setMarkerShape "ELLIPSE";
+"AIX_AO_BLU" setMarkerSize _aoSizeBlu;
+
+	systemChat ("BLU STRAT: " + AIX_STRAT_BLU + " VAL: " + str _val_blu + " ATK: " + str (AIX_CMD_BLU select 1) + " DEF: " + str (AIX_CMD_BLU select 2));
+	systemChat ("OPF STRAT: " + AIX_STRAT_OPF + " VAL: " + str _val_opf + " ATK: " + str (AIX_CMD_OPF select 1) + " DEF: " + str (AIX_CMD_OPF select 2));
